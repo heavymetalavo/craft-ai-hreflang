@@ -1,0 +1,40 @@
+{
+  "name": "extreme/craft-ai-hreflang-detector",
+  "description": "Detects the language each page is written in with AI, and sets its hreflang to match.",
+  "type": "craft-plugin",
+  "require": {
+    "php": ">=8.2",
+    "craftcms/cms": "^5.8.0"
+  },
+  "require-dev": {
+    "craftcms/ecs": "dev-main",
+    "craftcms/phpstan": "dev-main"
+  },
+  "autoload": {
+    "psr-4": {
+      "extreme\\aihreflangdetector\\": "src/"
+    }
+  },
+  "extra": {
+    "handle": "ai-hreflang-detector",
+    "name": "AI Hreflang Detector",
+    "developer": "Extreme",
+    "documentationUrl": "",
+    "class": "extreme\\aihreflangdetector\\AiHreflangDetector"
+  },
+  "scripts": {
+    "check-cs": "ecs check --ansi",
+    "fix-cs": "ecs check --ansi --fix",
+    "phpstan": "phpstan --memory-limit=1G"
+  },
+  "config": {
+    "sort-packages": true,
+    "platform": {
+      "php": "8.2"
+    },
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true,
+      "craftcms/plugin-installer": true
+    }
+  }
+}

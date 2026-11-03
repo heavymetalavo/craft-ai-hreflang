@@ -1,0 +1,29 @@
+{% import '_includes/forms' as forms %}
+
+{{ hiddenInput(name ~ '[language]', value.language ?? '') }}
+{{ hiddenInput(name ~ '[hash]', value.hash ?? '') }}
+{{ hiddenInput(name ~ '[detectedAt]', value.detectedAt ? value.detectedAt|atom : '') }}
+
+{% set autoLabel = value.auto and value.language
+    ? 'Detect automatically: currently {label}'|t('ai-hreflang-detector', { label: hreflangLabel })
+    : 'Detect automatically'|t('ai-hreflang-detector') %}
+
+{{ forms.select({
+    id: id,
+    name: name ~ '[mode]',
+    options: [{ label: autoLabel, value: '' }]|merge(languageOptions|map((label, code) => { label: label, value: code })|values),
+    value: value.auto ? '' : value.language,
+}) }}
+
+<p class="light smalltext">
+    {% if not value.auto %}
+        {{ 'Chosen by an editor, so it isn’t detected when the page is saved.'|t('ai-hreflang-detector') }}
+    {% elseif value.detectedAt and value.language %}
+        {{ 'Detected as {language} {date}.'|t('ai-hreflang-detector', { language: value.languageName, date: value.detectedAt|datetime('short') }) }}
+    {% elseif value.detectedAt %}
+        {{ 'The language couldn’t be told {date}, so the site’s own hreflang is used.'|t('ai-hreflang-detector', { date: value.detectedAt|datetime('short') }) }}
+    {% else %}
+        {{ 'Not detected yet, so the site’s own hreflang is used. It is detected after the page is saved, if it has at least {count, number} words.'|t('ai-hreflang-detector', { count: minimumWords }) }}
+    {% endif %}
+    {{ 'hreflang:'|t('ai-hreflang-detector') }} <code>{{ hreflang }}</code>
+</p>

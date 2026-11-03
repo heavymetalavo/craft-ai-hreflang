@@ -1,0 +1,242 @@
+{# Coverage as a small progress ring followed by the value, as in the AI Alt Text utility. The radius is 15.9155 so
+   the circumference is 100 and the percentage drives stroke-dasharray directly. #}
+{% macro coverageRing(coverage) %}
+    {%- if coverage is null -%}
+        <span class="light">—</span>
+    {%- else -%}
+        {%- if coverage >= 100 -%}
+            {%- set color = 'var(--success-color, #0f766e)' -%}
+        {%- elseif coverage >= 90 -%}
+            {%- set color = 'var(--green-500, #22c55e)' -%}
+        {%- elseif coverage >= 75 -%}
+            {%- set color = 'var(--yellow-500, #eab308)' -%}
+        {%- elseif coverage >= 50 -%}
+            {%- set color = 'var(--amber-500, #f59e0b)' -%}
+        {%- else -%}
+            {%- set color = 'var(--red-500, #ef4444)' -%}
+        {%- endif -%}
+        <span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <svg viewBox="0 0 40 40" width="16" height="16" aria-hidden="true" focusable="false" style="flex: none;">
+                <circle cx="20" cy="20" r="15.9155" fill="none" stroke="var(--gray-200)" stroke-width="6"/>
+                {%- if coverage > 0 %}
+                <circle cx="20" cy="20" r="15.9155" fill="none" stroke="{{ color }}" stroke-width="6"
+                        stroke-dasharray="{{ coverage|round(1) }} 100" stroke-linecap="round" transform="rotate(-90 20 20)"/>
+                {%- endif %}
+            </svg>
+            {{ coverage|number_format(1) }}%
+        </span>
+    {%- endif -%}
+{% endmacro %}
+
+{# The share of a site's pages using each hreflang, as a stacked bar with a key below it. The site's own hreflang is
+   grey, others are coloured so pages served in another language stand out, and pages not detected yet are striped. #}
+{% macro hreflangBar(hreflangs, siteHreflang, notDetected, asText = false) %}
+    {%- set total = hreflangs|reduce((sum, count) => sum + count, 0) + notDetected -%}
+    {%- if total == 0 -%}
+        <span class="light">—</span>
+    {%- else -%}
+        {#- Coloured by language, so English is the same colour on every site -#}
+        {%- set colors = { en: 'var(--blue-500, #3b82f6)', fr: 'var(--violet-500, #8b5cf6)', de: 'var(--pink-500, #ec4899)', it: 'var(--teal-500, #14b8a6)' } -%}
+        {%- set segments = [] -%}
+        {%- for code, count in hreflangs|filter(count => count > 0) -%}
+            {%- set segments = segments|merge([{
+                label: code,
+                code: not asText,
+                count: count,
+                color: code == siteHreflang ? 'var(--gray-300, #cbd5e1)' : colors[code|split('-')|first] ?? 'var(--orange-500, #f97316)',
+            }]) -%}
+        {%- endfor -%}
+        {%- if notDetected > 0 -%}
+            {%- set segments = segments|merge([{
+                label: 'Not detected'|t('ai-hreflang-detector'),
+                code: false,
+                count: notDetected,
+                color: 'repeating-linear-gradient(-45deg, var(--gray-200, #e2e8f0) 0 2px, var(--gray-050, #f8fafc) 2px 4px)',
+            }]) -%}
+        {%- endif -%}
+        <div style="min-width: 160px;">
+            <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--gray-100);" aria-hidden="true">
+                {%- for segment in segments %}
+                    <span style="width: {{ segment.count / total * 100 }}%; background: {{ segment.color }};"></span>
+                {%- endfor %}
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px;" class="smalltext">
+                {%- for segment in segments %}
+                    <span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; background: {{ segment.color }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);" aria-hidden="true"></span>
+                        {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} ({{ segment.count|number }})
+                    </span>
+                {%- endfor %}
+            </div>
+        </div>
+    {%- endif -%}
+{% endmacro %}
+
+{% macro detectButtons(siteId, disabled) %}
+    <div class="buttons" style="margin: 0;">
+        {% for force in [false, true] %}
+            <form method="post" accept-charset="UTF-8">
+                {{ csrfInput() }}
+                {{ actionInput('ai-hreflang-detector/utility/detect') }}
+                {{ redirectInput('utilities/ai-hreflang-detector') }}
+                {{ siteId ? hiddenInput('siteId', siteId) }}
+                {{ force ? hiddenInput('force', 1) }}
+                <button type="submit" class="btn small submit" {% if disabled %}disabled{% endif %}>
+                    {{ force ? 'Re-detect all'|t('ai-hreflang-detector') : 'Detect missing'|t('ai-hreflang-detector') }}
+                </button>
+            </form>
+        {% endfor %}
+    </div>
+{% endmacro %}
+
+{% if currentUser.admin %}
+    <div class="flex flex-nowrap" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
+        <a href="{{ cpUrl('settings/plugins/ai-hreflang-detector') }}" class="btn" data-icon="settings">{{ 'Plugin Settings'|t('ai-hreflang-detector') }}</a>
+    </div>
+{% endif %}
+
+{% if configurationError %}
+    <p class="error">{{ configurationError }}</p>
+{% endif %}
+
+{% if not hasField %}
+    <p class="warning with-icon">
+        {{ 'The Content Language field isn’t in any entry type’s field layout, so no pages are detected.'|t('ai-hreflang-detector') }}
+    </p>
+{% endif %}
+
+<div class="readable" style="margin-bottom: 24px;">
+    <p>
+        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}
+    </p>
+    {% if not configurationError %}
+        <p class="light">
+            {{ 'Languages are detected with the {provider} model {model}.'|t('ai-hreflang-detector', { provider: provider, model: '`' ~ model ~ '`' })|md(inlineOnly=true) }}
+        </p>
+    {% endif %}
+</div>
+
+<details id="how-pages-are-detected" style="margin-bottom: 24px;">
+    <summary style="cursor: pointer;"><strong>{{ 'How a page’s language is detected'|t('ai-hreflang-detector') }}</strong></summary>
+    <div class="readable" style="margin-top: 8px;">
+        <ul class="bullets">
+            <li>{{ 'When a page is saved, a queue job reads its text on each site it’s on, and sends it to the AI provider, which replies with the language it is written in.'|t('ai-hreflang-detector') }}</li>
+            <li>{{ '**Read:** the title, plain text fields, rich text (CKEditor) fields without the entries embedded in them, table fields, and the same fields in nested Matrix entries, Neo blocks and content blocks, up to 5 levels deep.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}</li>
+            <li>{{ '**Not read:** related entries, categories and assets, which are other pages or files, and fields that aren’t text, such as links, dropdowns, lightswitches, dates and SEO settings.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}</li>
+            <li>{{ 'Pages with fewer than {count, number} words aren’t sent, and keep their site’s own hreflang, as there isn’t enough text to tell their language reliably.'|t('ai-hreflang-detector', { count: minimumWords }) }}</li>
+            <li>{{ 'The first {count, number} characters are sent, with the whitespace collapsed, and the [prompt]({url}) asks for the language most of the text is written in. Language detection needs little text, and less text costs less.'|t('ai-hreflang-detector', { count: maxCharacters, url: cpUrl('settings/plugins/ai-hreflang-detector') })|md(inlineOnly=true) }}</li>
+            <li>{{ 'A hash of the text is saved with the language, so a page whose text hasn’t changed isn’t sent again.'|t('ai-hreflang-detector') }}</li>
+            <li>{{ 'Pages whose language was chosen by an editor are skipped. If the AI provider can’t tell the language, the page keeps its site’s own hreflang.'|t('ai-hreflang-detector') }}</li>
+        </ul>
+    </div>
+</details>
+
+<h2>{{ 'Coverage'|t('ai-hreflang-detector') }}</h2>
+
+<p class="light">
+    {{ '**Detect missing** detects pages that haven’t been, and pages whose text has changed since. **Re-detect all** sends every page again. Pages whose language was chosen by an editor are skipped. Pages are detected in the queue.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}
+</p>
+
+{% set totals = {
+    total: stats|reduce((sum, row) => sum + row.total, 0),
+    detected: stats|reduce((sum, row) => sum + row.detected, 0),
+    chosen: stats|reduce((sum, row) => sum + row.chosen, 0),
+} %}
+
+<div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Content language coverage by site'|t('ai-hreflang-detector') }}">
+    <table class="data fullwidth">
+        <thead>
+            <tr>
+                <th scope="col">{{ 'Site'|t('app') }}</th>
+                <th scope="col">{{ 'Detected'|t('ai-hreflang-detector') }}</th>
+                <th scope="col">{{ 'Coverage'|t('ai-hreflang-detector') }}</th>
+                <th scope="col">{{ 'hreflang'|t('ai-hreflang-detector') }}</th>
+                <th scope="col">{{ 'Actions'|t('ai-hreflang-detector') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <th scope="row"><strong>{{ 'All sites'|t('app') }}</strong></th>
+                <td>{{ totals.detected|number }} / {{ totals.total|number }}</td>
+                <td>{{ _self.coverageRing(totals.total ? totals.detected / totals.total * 100 : null) }}</td>
+                <td>
+                    {% set ownLanguage = stats|reduce((sum, row) => sum + (row.hreflangs[row.siteHreflang] ?? 0), 0) %}
+                    {% set ownLabel = 'Site’s language'|t('ai-hreflang-detector') %}
+                    {{ _self.hreflangBar({
+                        (ownLabel): ownLanguage,
+                        ('Another language'|t('ai-hreflang-detector')): totals.detected - ownLanguage,
+                    }, ownLabel, totals.total - totals.detected, true) }}
+                    {% if totals.chosen %}
+                        <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang-detector', { count: totals.chosen }) }}</div>
+                    {% endif %}
+                </td>
+                <td>{{ _self.detectButtons(null, configurationError) }}</td>
+            </tr>
+            {% for row in stats %}
+                <tr>
+                    <th scope="row">
+                        {{ row.site.name }}
+                        <div class="light smalltext"><code>{{ row.siteHreflang }}</code></div>
+                    </th>
+                    <td>{{ row.detected|number }} / {{ row.total|number }}</td>
+                    <td>{{ _self.coverageRing(row.coverage) }}</td>
+                    <td>{{ _self.hreflangBar(row.hreflangs, row.siteHreflang, row.total - row.detected) }}</td>
+                    <td>{{ _self.detectButtons(row.site.id, configurationError) }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<hr>
+
+<h2>{{ 'Pages in another language'|t('ai-hreflang-detector') }}</h2>
+<p class="light">
+    {{ 'Pages written in a language other than their site’s on at least one site, with the hreflang each site gives them, most recently detected first. Highlighted values differ from the site’s own, and faint ones haven’t been detected yet.'|t('ai-hreflang-detector') }}
+</p>
+
+{% if otherLanguagePages %}
+    <div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Pages in another language'|t('ai-hreflang-detector') }}">
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Page'|t('ai-hreflang-detector') }}</th>
+                    {% for site in sites %}
+                        <th scope="col" title="{{ site.name }}">{{ site.language }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in otherLanguagePages %}
+                    <tr>
+                        <th scope="row">{{ elementChip(row.entry, { hyperlink: true }) }}</th>
+                        {% for site in sites %}
+                            {% set cell = row.sites[site.id] ?? null %}
+                            <td>
+                                {% if cell %}
+                                    <a href="{{ cell.entry.cpEditUrl }}" title="{{ 'Edit on {site}'|t('ai-hreflang-detector', { site: site.name }) }}">
+                                        {%- if cell.other -%}
+                                            <span class="status-label orange" style="text-transform: none;"><span class="status orange"></span><span class="status-label-text" style="text-transform: none;">{{ cell.hreflang }}</span></span>
+                                        {%- elseif cell.detected -%}
+                                            <code>{{ cell.hreflang }}</code>
+                                        {%- else -%}
+                                            <code class="light" style="opacity: .5;" title="{{ 'Not detected yet, so the site’s own hreflang is used'|t('ai-hreflang-detector') }}">{{ cell.hreflang }}</code>
+                                        {%- endif -%}
+                                    </a>
+                                    {% if cell.chosen %}<span class="light smalltext">{{ '(chosen)'|t('ai-hreflang-detector') }}</span>{% endif %}
+                                {% else %}
+                                    <span class="light">—</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="margin-top: 12px;">
+        {% include '_includes/pagination' with { pageInfo: pageInfo, itemLabel: 'page'|t('ai-hreflang-detector'), itemsLabel: 'pages'|t('ai-hreflang-detector') } %}
+    </div>
+{% else %}
+    <p>{{ 'None yet.'|t('ai-hreflang-detector') }}</p>
+{% endif %}
