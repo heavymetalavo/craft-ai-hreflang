@@ -1,95 +1,86 @@
-# AI Hreflang Detector
+# 🌍 🤖 AI Hreflang
 
-A Craft CMS plugin that detects the language each page is written in with AI, and sets the page's hreflang to match.
+**README** · [Getting started](docs/getting-started.md) · [How it works](docs/how-it-works.md) · [Settings](docs/settings.md)
 
-A page on the French site (`fr-FR`) whose content is still the English copy is announced as `en-FR` instead of `fr-FR`,
-so search engines aren't told an English page is French. Translated pages keep their site's hreflang.
+![AI Hreflang, for multi-site Craft websites where pages aren't always in their site's language, with Anthropic, OpenAI, Langdock and OpenRouter, on Craft 5. A page on the French site that is still in English, with its hreflang corrected from fr-FR to en-FR.](docs/images/banner.png)
 
-## Requirements
+**For multi-site Craft websites where pages aren't always in their site's language.**
 
-- Craft CMS 5.8+
-- PHP 8.2+
-- SEOmatic, which outputs the hreflang tags
-- An API key for one of the AI providers: Anthropic, OpenAI, Langdock or OpenRouter
+Some pages are waiting on a translator. Others stay in English on purpose: because most of their audience speaks it as
+a second language and translating every page isn't worth the budget, or because they're legal or regulatory text that
+must keep its original wording. Either way, AI Hreflang detects the language each page is really written in, and sets
+its hreflang to match.
 
-## Installation
+[GitHub Repository](https://github.com/heavymetalavo/craft-ai-hreflang)
 
-Install it with Composer, or for local development through a Composer path repository with `"symlink": true`.
+## 🤔 The problem
 
-On a fresh install, `php craft plugin/install ai-hreflang-detector` creates the **Content Language** field
-(`contentLanguage`). When the plugin is installed by applying the project config, the field comes from the project
-config instead. Both use the same UID, so they never conflict.
+Multi-site launches rarely translate everything at once. Until a page is translated, the French site shows the English
+copy, while SEOmatic tells search engines it's `fr-FR`. Google sees a French page in English, and French searchers get
+the wrong result. AI Hreflang finds those pages and announces them as `en-FR`, so each page is listed for the
+language it's actually in. Translated pages keep their site's hreflang, and nobody has to keep track by hand.
 
-Add the field to the field layout of each entry type with public pages, e.g. at the top of an **SEO** tab.
+## ✨ What you get
 
-## How it works
+- **Untranslated pages caught automatically.** A page is detected after it's saved, on each site the save changed,
+  once caches such as Blitz's are cleared. As soon as it's translated, the next save puts its hreflang back.
+- **Reach new audiences before everything's translated.** Copy content across your sites, with Craft's propagation or
+  a plugin such as Site Copy X, and go live. Each page's hreflang stays truthful while translation catches up.
+- **English on purpose, labelled honestly.** In the Netherlands, 93% of people can hold a conversation in English; in
+  Sweden it's 90%, and in Denmark 87% ([Special Eurobarometer 540](https://europa.eu/eurobarometer/surveys/detail/2979),
+  2023). Pages you keep in English for those audiences are labelled `en-NL`, `en-SE` or `en-DK`, so search engines know
+  exactly who they're for.
+- **Reads what your visitors read.** The plugin fetches the live page and reads its main content, `<main>` or any
+  element you choose, so hidden fields, notes for editors, menus and cookie banners can't skew the result.
+- **Works with any AI provider.** Use Anthropic or OpenAI directly, Langdock (hosted in the EU), or OpenRouter. The
+  plugin sends the page's text itself, rather than its URL, so it works the same with every provider, and on local and
+  staging sites the provider can't reach. See [why](docs/how-it-works.md#-why-the-plugin-fetches-the-page-itself).
+- **Costs next to nothing.** A small model is all it takes, only the first 2,000 characters of a page are sent, and a
+  page whose text hasn't changed is never sent again.
+- **Entries, categories and more.** Any element with public pages is supported. Add the field to a field layout and
+  its pages are detected.
+- **Automatic, one click, or in bulk.** On save, from an entry's or category's action menu, or for a whole site from
+  the utility. Everything runs through Craft's queue.
+- **Editors stay in control.** Any page's language can be chosen from a searchable list of every language, and a
+  chosen language is never overwritten.
+- **SEOmatic's hreflang tags, fixed.** Alternate links are rewritten for every site, in your sites' own format, such as
+  `en-GB`, or as the language alone, such as `en`.
+- **See every site's coverage, and a free translation to-do list.** The utility shows how many pages each site has
+  detected, the hreflang values in use, and every page that's still in another language, ready to hand to translators.
 
-1. When an entry is saved, a queue job reads its title and text fields on each of its sites. That includes plain text,
-   CKEditor, tables, and nested Matrix entries and Neo blocks; related entries are skipped.
-2. If a site's text has at least 50 words and has changed since it was last detected, the first 2,000 characters are
-   sent to the chosen AI provider with the prompt, which asks for the language's BCP 47 language subtag (e.g. `en`), or `und` if it can't be told (the
-   page then keeps its site's own hreflang). The code is saved to the Content Language field with a hash of the text,
-   so unchanged text isn't sent again.
-3. When a page is rendered, SEOmatic's alternate links are rewritten from each site's Content Language: the detected
-   language with the site's region, as a BCP 47 language tag such as `en-FR`. A page that hasn't been detected keeps
-   its site's own hreflang. `x-default` is left alone.
+![How it works, in four steps. 1, saved: a page is saved, and once caches such as Blitz's are cleared, a queue job fetches it on each site the save changed. 2, read: the text of its main content is taken, without menus, scripts or styles. 3, detected: the text is sent to Anthropic, OpenAI, Langdock or OpenRouter, which replies with its language. 4, announced: SEOmatic's hreflang for that site becomes the detected language with the site's region, such as en-FR.](docs/images/how-it-works.png)
 
-hreflang values are written in the format of the sites' language settings (`en-GB`), for every alternate link on a
-page, rather than SEOmatic's lower case (`en-gb`). They're case-insensitive, so both mean the same.
+## 🚀 Quick start
 
-Editors can choose a page's language in the field instead, and then it isn't detected. The field's options name each
-language for the page's site, with the hreflang it gives the page, e.g. "English (Germany) — en-DE". **Detect content language** in an entry's action menu (…) detects it on the
-site being edited straight away.
+Craft CMS 5.8 or later, PHP 8.2 or later, SEOmatic, and an API key for Anthropic, OpenAI, Langdock or OpenRouter.
 
-## Settings
+```sh
+composer require heavymetalavo/craft-ai-hreflang
+./craft plugin/install ai-hreflang
+```
 
-**Settings → Plugins → AI Hreflang Detector**
+1. Choose a provider and add its API key under **Settings → AI Hreflang**.
+2. Add the **Content Language** field, created when the plugin is installed, to the field layouts of your entry types
+   and category groups with public pages.
+3. Detect your existing pages from **Utilities → AI Hreflang → Detect missing**. New and changed pages are
+   detected when they're saved.
 
-| Setting | Description |
-| --- | --- |
-| AI Provider | Anthropic, OpenAI, Langdock or OpenRouter. Only the chosen provider's settings are shown |
-| API Key | The chosen provider's key, e.g. `$OPENROUTER_API_KEY` |
-| Model | A small model is enough, e.g. `claude-haiku-5-5`, `gpt-5-nano` or `openai/gpt-5-nano` |
-| Langdock Model Author | Anthropic or OpenAI, which picks the Langdock API requests go to |
-| Reasoning Effort | OpenAI, Langdock (OpenAI models) and OpenRouter only. Only sent to OpenAI reasoning models (`low` by default) |
-| Prompt | The instructions sent with each page's text. The reply must be a BCP 47 language subtag such as `en`, or `und` when the language can't be told |
-| Detect when a page is saved | On by default |
-| Minimum Words | Pages with fewer words (50 by default) aren't sent, and keep their site's own hreflang |
-| Maximum Characters | How much of a page's text is sent (2,000 by default) |
+## 📚 Documentation
 
-The providers are the same as the AI Alt Text plugin's, and requests are made the same way, but with this plugin's
-own settings:
+- [Getting started](docs/getting-started.md) - requirements, installation, the Content Language field, page caches and
+  detecting your first pages
+- [How it works](docs/how-it-works.md) - how pages are read and detected, how hreflang values are written, and
+  limitations
+- [Settings](docs/settings.md) - every setting, the AI providers, the prompt and the hreflang format
 
-| Provider | API |
-| --- | --- |
-| Anthropic | Messages API, `https://api.anthropic.com/v1/messages` |
-| OpenAI | Responses API, `https://api.openai.com/v1/responses`, with `store: false` |
-| Langdock | Anthropic models through its Messages API, OpenAI models through its Responses API, in the EU region |
-| OpenRouter | Responses API, `https://openrouter.ai/api/v1/responses` |
+## ⚠️ Disclaimer
 
-## Utility
+Each detection is a request to your AI provider, billed to your account. The defaults keep that cost down, with a small
+model, 2,000 characters per page and unchanged pages skipped, but we take no responsibility for API usage that results
+from mistakes, bugs or security vulnerabilities in this plugin, so use it at your own risk.
 
-**Utilities → AI Hreflang Detector** shows each site's coverage (detected pages out of all its pages) and the hreflang
-values its pages use, with buttons to detect them for one site or all sites:
+## 🙋 Support
 
-- **Detect missing** sends only pages that haven't been detected or whose text has changed.
-- **Re-detect all** sends every page again.
-
-Below, a paginated table lists the pages that are in another language on at least one site, with the hreflang each
-site gives them.
-
-Using it needs the utility's permission.
-
-## Why fields rather than the rendered page
-
-The text comes from the entry's fields rather than its rendered URL. A rendered page includes the navigation, footer
-and cookie banner, which are in the site's language, and would bias detection towards it on exactly the pages that
-are still in English. Fetching a page straight after a save could also return Blitz's cached copy before its refresh
-job runs, and disabled or pending pages can't be fetched at all. The order of a page's fields doesn't matter for
-telling which language most of its text is in.
-
-## Limitations
-
-- Without SEOmatic, languages are still detected, but no hreflang tags are changed.
-- SEOmatic's sitemaps still list each alternate with its site's language, as SEOmatic offers no way to change them.
-- The `<html lang>` attribute isn't changed.
+If you have any issues or questions, please submit them on
+[GitHub](https://github.com/heavymetalavo/craft-ai-hreflang/issues).
+# craft-ai-hreflang
