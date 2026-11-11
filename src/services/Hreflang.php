@@ -5,6 +5,7 @@ namespace heavymetalavo\aihreflang\services;
 use Craft;
 use craft\base\Component;
 use craft\base\ElementInterface;
+use craft\helpers\UrlHelper;
 use craft\models\Site;
 use heavymetalavo\aihreflang\AiHreflang;
 use nystudio107\seomatic\events\AddDynamicMetaEvent;
@@ -189,12 +190,30 @@ class Hreflang extends Component
         foreach ($this->resolve($languages) as $siteId => $row) {
             $alternates[$siteId] = $row + [
                 'element' => $copies[$siteId],
-                'url' => $copies[$siteId]->getUrl(),
+                'url' => $this->absoluteUrl($copies[$siteId]->getUrl()),
                 'language' => $languages[$siteId],
             ];
         }
 
         return $alternates;
+    }
+
+    /**
+     * An absolute URL for a page, as hreflang links need one. A site with a relative base URL, such as `/fr/`, gives
+     * root-relative URLs, which are on the current request's host, or outside a web request, the primary site's.
+     */
+    private function absoluteUrl(string $url): string
+    {
+        if (!UrlHelper::isRootRelativeUrl($url)) {
+            return $url;
+        }
+
+        $request = Craft::$app->getRequest();
+        $hostInfo = $request->getIsConsoleRequest()
+            ? UrlHelper::hostInfo(Craft::$app->getSites()->getPrimarySite()->getBaseUrl() ?? '')
+            : $request->getHostInfo();
+
+        return $hostInfo . $url;
     }
 
     /**
