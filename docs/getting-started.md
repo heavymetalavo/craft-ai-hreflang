@@ -9,7 +9,8 @@ How to install AI Hreflang, set it up and detect your first pages. For the overv
 
 - Craft CMS 5.8 or later
 - PHP 8.2 or later
-- SEOmatic, which outputs the hreflang tags
+- SEOmatic is recommended, as it outputs the hreflang tags. Without it, output them with
+  [`craft.aiHreflang.alternates()`](../README.md#outputting-the-hreflang-tags)
 - An API key for Anthropic, OpenAI, Langdock or OpenRouter, see [Settings](settings.md#-ai-providers)
 
 ## 📥 Installation
@@ -32,13 +33,22 @@ listed under **Custom Fields**, and its field type, **Content Language (hreflang
 When the plugin is installed by applying the project config, the field comes from the project config instead. Both use
 the same UID, so they never conflict.
 
+The plugin finds the field by its type, so you can rename it, change its handle, or override its handle in a field
+layout. If a field layout has more than one Content Language field, the first is used. Uninstalling the plugin deletes
+the field it created, as its values mean nothing without the plugin.
+
 Add the field to the field layout of each entry type, category group or other element type with public pages, e.g. at
-the top of an **SEO** tab. Only elements with the field are detected. Assets, users and globals have no pages, so they
-can't be.
+the top of an **SEO** tab. Only elements with the field and a URL are detected. Assets, tags, users, addresses and
+globals have no pages, so they can't be, and neither can entries in sections without URLs.
 
 The field shows the page's language on the site being edited: the detected language, or blank before it has been
 detected. Editors can choose another language from the searchable list, which then isn't detected again. Choosing the
-blank option detects it again the next time the page is saved.
+blank option detects it again the next time the page is saved. Only the choice is saved from the edit form: the
+detection itself is only ever written by detection, so a form or draft opened before a detection can't put an older
+one back.
+
+When a page's language would give it the same hreflang as another site's copy of the page, the field warns about the
+clash and shows the hreflang the page keeps: its site's own.
 
 ## 🎯 The page's content
 
@@ -71,8 +81,8 @@ Either way, the jobs have a lower priority (2048, the **Queue Priority** setting
 ## 🔍 Detecting your first pages
 
 Pages saved before the plugin was installed haven't been detected yet. Open **Utilities → AI Hreflang**, which
-shows each site's coverage (detected pages out of all its pages) and the hreflang values its pages use, with buttons to
-detect them for one site or all sites:
+shows each site's coverage (detected pages out of all its live pages with the field and a URL) and the hreflang values
+its pages use, with buttons to detect them for one site or all sites:
 
 - **Detect missing** sends only pages that haven't been detected or whose text has changed.
 - **Re-detect all** sends every page again.
@@ -81,3 +91,6 @@ Below, a paginated table lists the pages that are in another language on at leas
 site gives them. Using the utility needs its permission.
 
 To detect a single page straight away, use **Detect content language** in its action menu (…) on the site being edited.
+It reads the published page, as drafts have no public URL. It runs while you wait, fetching the page from your own
+site, so the web server must be able to handle a second request at the same time, which PHP's built-in server
+(`php -S`) can't. Use the queue (**Detect missing**) there instead.

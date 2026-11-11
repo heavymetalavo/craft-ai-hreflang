@@ -2,7 +2,7 @@
 
 **README** · [Getting started](docs/getting-started.md) · [How it works](docs/how-it-works.md) · [Settings](docs/settings.md)
 
-![AI Hreflang, for multi-site Craft websites where pages aren't always in their site's language, with Anthropic, OpenAI, Langdock and OpenRouter, on Craft 5. A page on the French site that is still in English, with its hreflang corrected from fr-FR to en-FR.](docs/images/banner.png)
+![AI Hreflang, for multi-site Craft websites where pages aren't always in their site's language, with Anthropic, OpenAI, Langdock and OpenRouter, on Craft 5 with SEOmatic and Blitz. The French site of Le Faux Gras, a made-up vegan bistro, whose page is in English, with its hreflang corrected from fr-FR to en-FR.](docs/images/banner.png)
 
 **For multi-site Craft websites where pages aren't always in their site's language.**
 
@@ -30,29 +30,34 @@ language it's actually in. Translated pages keep their site's hreflang, and nobo
   Sweden it's 90%, and in Denmark 87% ([Special Eurobarometer 540](https://europa.eu/eurobarometer/surveys/detail/2979),
   2023). Pages you keep in English for those audiences are labelled `en-NL`, `en-SE` or `en-DK`, so search engines know
   exactly who they're for.
-- **Reads what your visitors read.** The plugin fetches the live page and reads its main content, `<main>` or any
+- **Reads the live page, like a visitor.** The plugin fetches the live page and reads its main content, `<main>` or any
   element you choose, so hidden fields, notes for editors, menus and cookie banners can't skew the result.
 - **Works with any AI provider.** Use Anthropic or OpenAI directly, Langdock (hosted in the EU), or OpenRouter. The
   plugin sends the page's text itself, rather than its URL, so it works the same with every provider, and on local and
   staging sites the provider can't reach. See [why](docs/how-it-works.md#-why-the-plugin-fetches-the-page-itself).
 - **Costs next to nothing.** A small model is all it takes, only the first 2,000 characters of a page are sent, and a
   page whose text hasn't changed is never sent again.
-- **Entries, categories and more.** Any element with public pages is supported. Add the field to a field layout and
-  its pages are detected.
+- **Entries, categories and more.** Entries and categories in sections and groups with URLs, Craft Commerce products,
+  and other plugins' elements with their own URLs are supported. Add the field to a field layout and its pages are
+  detected. Assets, tags, users, addresses and globals have no pages of their own, so they're skipped.
 - **Automatic, one click, or in bulk.** On save, from an entry's or category's action menu, or for a whole site from
   the utility. Everything runs through Craft's queue.
 - **Editors stay in control.** Any page's language can be chosen from a searchable list of every language, and a
   chosen language is never overwritten.
 - **SEOmatic's hreflang tags, fixed.** Alternate links are rewritten for every site, in your sites' own format, such as
   `en-GB`, or as the language alone, such as `en`.
+- **No duplicate hreflang values.** Two URLs can't share an hreflang, so an untranslated page that would get the same
+  value as another site's page, such as an `es-US` page still in English next to the `en-US` site's, keeps its site's
+  own hreflang. The clash is shown in the field and the utility.
 - **See every site's coverage, and a free translation to-do list.** The utility shows how many pages each site has
   detected, the hreflang values in use, and every page that's still in another language, ready to hand to translators.
 
-![How it works, in four steps. 1, saved: a page is saved, and once caches such as Blitz's are cleared, a queue job fetches it on each site the save changed. 2, read: the text of its main content is taken, without menus, scripts or styles. 3, detected: the text is sent to Anthropic, OpenAI, Langdock or OpenRouter, which replies with its language. 4, announced: SEOmatic's hreflang for that site becomes the detected language with the site's region, such as en-FR.](docs/images/how-it-works.png)
+![How it works, in four steps. 1, saved: a page is saved, and once caches such as Blitz's are cleared, a queue job is added for each site the save changed. 2, fetched: the live page is requested from your site, like a visitor would, and the text of its main content is taken. 3, detected: the text is sent to Anthropic, OpenAI, Langdock or OpenRouter, which replies with its language. 4, announced: SEOmatic's hreflang for that site becomes the detected language with the site's region, such as en-FR.](docs/images/how-it-works.png)
 
 ## 🚀 Quick start
 
-Craft CMS 5.8 or later, PHP 8.2 or later, SEOmatic, and an API key for Anthropic, OpenAI, Langdock or OpenRouter.
+Craft CMS 5.8 or later, PHP 8.2 or later, and an API key for Anthropic, OpenAI, Langdock or OpenRouter. SEOmatic is
+recommended, as it outputs the hreflang tags for you.
 
 ```sh
 composer require heavymetalavo/craft-ai-hreflang
@@ -64,6 +69,38 @@ composer require heavymetalavo/craft-ai-hreflang
    and category groups with public pages.
 3. Detect your existing pages from **Utilities → AI Hreflang → Detect missing**. New and changed pages are
    detected when they're saved.
+
+### Outputting the hreflang tags
+
+**With SEOmatic**, there's nothing to add. Its hreflang tags are rewritten for every site automatically, and an editor
+can override any page by choosing its language in the Content Language field.
+
+**Without SEOmatic**, output the alternate links in your layout's `<head>`. `craft.aiHreflang.alternates()` gives a
+page's live copy on each site, with its URL and hreflang, clashes already resolved. It works for entries, categories
+and any other element with pages:
+
+```twig
+{% set alternates = craft.aiHreflang.alternates(entry) %}
+{% for alternate in alternates %}
+  <link rel="alternate" hreflang="{{ alternate.hreflang }}" href="{{ alternate.url }}">
+{% endfor %}
+{# x-default, for visitors whose language none of the alternates match, here the primary site's page #}
+{% for alternate in alternates|filter(a => a.site.primary) %}
+  <link rel="alternate" hreflang="x-default" href="{{ alternate.url }}">
+{% endfor %}
+```
+
+Each alternate's `hreflang` is the page's language with its site's region, such as `en-FR`, or the site's own
+hreflang when the page hasn't been detected yet, is in the site's language, or would clash with another copy. Each also
+has `site`, `language` (the Content Language, or null) and `clash` (the hreflang it would have had). The field's
+value is also available on its own: `entry.contentLanguage.language` is the language code, such as `en`, or null when
+it hasn't been detected.
+
+### Using Blitz
+
+There's nothing to set up. Pages are detected once Blitz has refreshed their cache, and the plugin's jobs run after
+Blitz's refresh and generate jobs by default. Blitz's **Expire** refresh modes are the exception, as they can serve an
+old copy while it's read. See [Page caches](docs/getting-started.md#-page-caches).
 
 ## 📚 Documentation
 

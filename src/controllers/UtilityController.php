@@ -3,6 +3,8 @@
 namespace heavymetalavo\aihreflang\controllers;
 
 use Craft;
+use craft\helpers\Queue as QueueHelper;
+use craft\queue\QueueInterface;
 use craft\web\Controller;
 use heavymetalavo\aihreflang\AiHreflang;
 use heavymetalavo\aihreflang\jobs\DetectLanguages;
@@ -51,14 +53,58 @@ class UtilityController extends Controller
             if (!$sites->getSiteById($id)?->getEnabled()) {
                 return $this->asFailure(Craft::t('ai-hreflang', 'Site {id} doesn’t exist or is disabled.', ['id' => $id]));
             }
+        }
 
+        $pending = $this->pendingJobDescriptions();
+        $priority = AiHreflang::getInstance()->getSettings()->queuePriority;
+        $queued = 0;
+
+        foreach ($siteIds as $id) {
             foreach (array_keys(AiHreflang::getInstance()->detector->getElementTypes()) as $elementType) {
-                Craft::$app->getQueue()->priority(AiHreflang::getInstance()->getSettings()->queuePriority)->push(new DetectLanguages(['siteId' => $id, 'elementType' => $elementType, 'force' => $force]));
+                // A job for the same pages that's still waiting or running would send them all again. Its later
+                // batches add "(batch 2 of 3)" to the description.
+                $description = DetectLanguages::describe($id, $elementType, $force);
+                foreach ($pending as $pendingDescription) {
+                    if ($pendingDescription === $description || str_starts_with($pendingDescription, "$description (")) {
+                        continue 2;
+                    }
+                }
+
+                QueueHelper::push(new DetectLanguages(['siteId' => $id, 'elementType' => $elementType, 'force' => $force]), $priority);
+                $queued++;
             }
+        }
+
+        if ($queued === 0) {
+            return $this->asSuccess(Craft::t('ai-hreflang', 'Detection is already queued for these pages.'));
         }
 
         return $this->asSuccess(Craft::t('ai-hreflang', 'Detection queued for {count, plural, =1{one site} other{# sites}}.', [
             'count' => count($siteIds),
         ]));
+    }
+
+    /**
+     * The descriptions of the queue's jobs that are waiting or running.
+     *
+     * @return string[]
+     */
+    private function pendingJobDescriptions(): array
+    {
+        $queue = Craft::$app->getQueue();
+
+        if (!$queue instanceof QueueInterface) {
+            return [];
+        }
+
+        $descriptions = [];
+
+        foreach ($queue->getJobInfo() as $job) {
+            if (in_array($job['status'], [\yii\queue\Queue::STATUS_WAITING, \yii\queue\Queue::STATUS_RESERVED], true)) {
+                $descriptions[] = (string)$job['description'];
+            }
+        }
+
+        return $descriptions;
     }
 }

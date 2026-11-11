@@ -20,27 +20,28 @@
     <p class="error">{{ configurationError }}</p>
 {% endif %}
 
-{% set reasoningEffortOptions = [
-    { label: 'None', value: 'none' },
-    { label: 'Minimal', value: 'minimal' },
-    { label: 'Low', value: 'low' },
-    { label: 'Medium', value: 'medium' },
-    { label: 'High', value: 'high' },
-    { label: 'Extra High', value: 'xhigh' },
-] %}
-{% set reasoningEffortInstructions = 'The [reasoning effort](https://developers.openai.com/api/docs/guides/reasoning#reasoning-effort) sent to OpenAI reasoning models, such as `o*` and `gpt-5*`. Other models are sent none. Detecting a language needs little reasoning. `gpt-5` models (like `gpt-5-nano` and `gpt-5-mini`) accept `minimal` but not `none` or `xhigh`, while newer models (like `gpt-6-luna`) accept `none` and `xhigh` but not `minimal`. `low` works on both.'|t('ai-hreflang') %}
+{# The options come from the Settings model's constants, which also validate the settings #}
+{% set reasoningEffortOptions = reasoningEfforts|map((label, value) => { label: label|t('ai-hreflang'), value: value })|values %}
+{% set reasoningEffortInstructions = 'The [reasoning effort](https://developers.openai.com/api/docs/guides/reasoning#reasoning-effort) sent to OpenAI reasoning models, such as `o*` and `gpt-5*`. Other models are sent none, and **Don’t send** sends none to any model. Detecting a language needs little reasoning. `gpt-5` models (like `gpt-5-nano` and `gpt-5-mini`) accept `minimal` but not `none` or `xhigh`, while newer models (like `gpt-6-luna`) accept `none` and `xhigh` but not `minimal`. `low` works on both.'|t('ai-hreflang') %}
 
-{% set providerValues = ['anthropic', 'openai', 'langdock', 'openrouter'] %}
+{% set providerValues = providers|keys %}
 {% set resolvedProvider = parseEnv(settings.aiProvider) %}
 {% set hiddenProviders = resolvedProvider in providerValues
     ? providerValues|filter(v => v != resolvedProvider)
     : providerValues %}
 
-{% set langdockAuthors = ['anthropic', 'openai'] %}
+{% set langdockAuthors = langdockModelAuthors|keys %}
 {% set resolvedLangdockAuthor = parseEnv(settings.langdockModelAuthor) %}
 {% set hiddenLangdockAuthors = resolvedLangdockAuthor in langdockAuthors
     ? langdockAuthors|filter(v => v != resolvedLangdockAuthor)
     : langdockAuthors %}
+
+{# An API key typed in is saved in the project config, which is usually committed to the repository #}
+{% macro apiKeyWarning(value, placeholder) %}
+    {%- if value and value|slice(0, 1) != '$' -%}
+        {{ 'This key is saved in plain text in the project config, which is usually committed to your repository. Use an environment variable, such as {placeholder}, instead.'|t('ai-hreflang', { placeholder: placeholder }) }}
+    {%- endif -%}
+{% endmacro %}
 
 {{ forms.selectizeField({
     label: 'AI Provider'|t('ai-hreflang'),
@@ -48,13 +49,7 @@
     id: 'aiProvider',
     name: 'aiProvider',
     required: true,
-    options: [
-        { label: 'Choose a provider…'|t('ai-hreflang'), value: '' },
-        { label: 'Anthropic', value: 'anthropic' },
-        { label: 'OpenAI', value: 'openai' },
-        { label: 'Langdock', value: 'langdock' },
-        { label: 'OpenRouter', value: 'openrouter' },
-    ],
+    options: [{ label: 'Choose a provider…'|t('ai-hreflang'), value: '' }]|merge(providers|map((label, value) => { label: label, value: value })|values),
     includeEnvVars: true,
     value: settings.aiProvider,
     errors: settings.getErrors('aiProvider'),
@@ -78,6 +73,7 @@
         suggestEnvVars: true,
         value: settings.anthropicApiKey,
         errors: settings.getErrors('anthropicApiKey'),
+        warning: _self.apiKeyWarning(settings.anthropicApiKey, '$ANTHROPIC_API_KEY')|trim ?: null,
     }) }}
 
     {{ forms.autosuggestField({
@@ -104,6 +100,7 @@
         suggestEnvVars: true,
         value: settings.openAiApiKey,
         errors: settings.getErrors('openAiApiKey'),
+        warning: _self.apiKeyWarning(settings.openAiApiKey, '$OPENAI_API_KEY')|trim ?: null,
     }) }}
 
     {{ forms.autosuggestField({
@@ -124,6 +121,7 @@
         name: 'openAiReasoningEffort',
         options: reasoningEffortOptions,
         includeEnvVars: true,
+        selectizeOptions: { allowEmptyOption: true },
         value: settings.openAiReasoningEffort,
         errors: settings.getErrors('openAiReasoningEffort'),
     }) }}
@@ -141,6 +139,7 @@
         suggestEnvVars: true,
         value: settings.langdockApiKey,
         errors: settings.getErrors('langdockApiKey'),
+        warning: _self.apiKeyWarning(settings.langdockApiKey, '$LANGDOCK_API_KEY')|trim ?: null,
     }) }}
 
     {{ forms.selectizeField({
@@ -148,10 +147,7 @@
         instructions: 'The author of the model below, so requests go to the matching Langdock API: Anthropic for models such as Claude, or OpenAI for models such as GPT. An environment variable must resolve to `anthropic` or `openai`; save and reload to show the matching settings.'|t('ai-hreflang'),
         id: 'langdockModelAuthor',
         name: 'langdockModelAuthor',
-        options: [
-            { label: 'Anthropic (e.g. Claude)', value: 'anthropic' },
-            { label: 'OpenAI (e.g. GPT)', value: 'openai' },
-        ],
+        options: langdockModelAuthors|map((label, value) => { label: label, value: value })|values,
         includeEnvVars: true,
         value: settings.langdockModelAuthor,
         errors: settings.getErrors('langdockModelAuthor'),
@@ -177,6 +173,7 @@
             name: 'langdockReasoningEffort',
             options: reasoningEffortOptions,
             includeEnvVars: true,
+            selectizeOptions: { allowEmptyOption: true },
             value: settings.langdockReasoningEffort,
             errors: settings.getErrors('langdockReasoningEffort'),
         }) }}
@@ -195,6 +192,7 @@
         suggestEnvVars: true,
         value: settings.openRouterApiKey,
         errors: settings.getErrors('openRouterApiKey'),
+        warning: _self.apiKeyWarning(settings.openRouterApiKey, '$OPENROUTER_API_KEY')|trim ?: null,
     }) }}
 
     {{ forms.autosuggestField({
@@ -215,6 +213,7 @@
         name: 'openRouterReasoningEffort',
         options: reasoningEffortOptions,
         includeEnvVars: true,
+        selectizeOptions: { allowEmptyOption: true },
         value: settings.openRouterReasoningEffort,
         errors: settings.getErrors('openRouterReasoningEffort'),
     }) }}

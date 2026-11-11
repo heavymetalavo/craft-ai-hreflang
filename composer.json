@@ -2,13 +2,43 @@
   "name": "heavymetalavo/craft-ai-hreflang",
   "description": "Detects the language each page is written in with AI, and sets its hreflang to match.",
   "type": "craft-plugin",
+  "keywords": [
+    "craft",
+    "cms",
+    "craftcms",
+    "craft-plugin",
+    "hreflang",
+    "seo",
+    "multi-site",
+    "ai"
+  ],
+  "support": {
+    "docs": "https://github.com/heavymetalavo/craft-ai-hreflang",
+    "issues": "https://github.com/heavymetalavo/craft-ai-hreflang/issues?state=open",
+    "source": "https://github.com/heavymetalavo/craft-ai-hreflang"
+  },
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "heavymetalavo",
+      "homepage": "https://github.com/heavymetalavo"
+    }
+  ],
   "require": {
     "php": ">=8.2",
-    "craftcms/cms": "^5.8.0"
+    "craftcms/cms": "^5.8.0",
+    "symfony/css-selector": "^6.0|^7.0"
   },
   "require-dev": {
     "craftcms/ecs": "dev-main",
-    "craftcms/phpstan": "dev-main"
+    "craftcms/phpstan": "dev-main",
+    "nystudio107/craft-seomatic": "^5.0",
+    "phpstan/phpstan": "^1.12 || ^2.0",
+    "putyourlightson/craft-blitz": "^5.0"
+  },
+  "suggest": {
+    "nystudio107/craft-seomatic": "Outputs the hreflang tags, which the plugin rewrites from each page’s Content Language",
+    "putyourlightson/craft-blitz": "Pages are detected once Blitz has refreshed their cache"
   },
   "autoload": {
     "psr-4": {
@@ -19,7 +49,7 @@
     "handle": "ai-hreflang",
     "name": "AI Hreflang",
     "developer": "heavymetalavo",
-    "documentationUrl": "",
+    "documentationUrl": "https://github.com/heavymetalavo/craft-ai-hreflang",
     "class": "heavymetalavo\\aihreflang\\AiHreflang"
   },
   "scripts": {

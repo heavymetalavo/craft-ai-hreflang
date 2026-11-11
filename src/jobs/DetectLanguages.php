@@ -6,19 +6,15 @@ use Craft;
 use craft\base\Batchable;
 use craft\base\ElementInterface;
 use craft\db\QueryBatcher;
-use craft\queue\BaseBatchedJob;
 use heavymetalavo\aihreflang\AiHreflang;
-use Throwable;
 
 /**
- * Detects the language of every page of one element type on a site, for pages saved before the plugin was installed.
- *
- * A page that can't be detected is logged and skipped, so one failure doesn't stop the rest. Several failures in a
- * row, such as from a wrong API key, stop the job rather than failing every page.
+ * Detects the language of every page of one element type on a site, for pages saved before the plugin was installed,
+ * or from the utility.
  *
  * @package heavymetalavo\aihreflang\jobs
  */
-class DetectLanguages extends BaseBatchedJob
+class DetectLanguages extends BaseDetectJob
 {
     public int $siteId;
 
@@ -26,18 +22,6 @@ class DetectLanguages extends BaseBatchedJob
      * @var class-string<ElementInterface>
      */
     public string $elementType;
-
-    /**
-     * Whether to detect pages whose text hasn't changed since they were last detected.
-     */
-    public bool $force = false;
-
-    /**
-     * How many pages in a row have failed, kept between batches.
-     */
-    public int $failuresInARow = 0;
-
-    private const MAX_FAILURES_IN_A_ROW = 5;
 
     /**
      * @inheritdoc
@@ -54,19 +38,9 @@ class DetectLanguages extends BaseBatchedJob
     /**
      * @inheritdoc
      */
-    protected function processItem(mixed $item): void
+    protected function element(mixed $item): ?ElementInterface
     {
-        /** @var ElementInterface $item */
-        try {
-            AiHreflang::getInstance()->detector->detect($item, $this->force);
-            $this->failuresInARow = 0;
-        } catch (Throwable $e) {
-            Craft::error(sprintf('Couldn’t detect the language of %s %d on site %d: %s', $item::lowerDisplayName(), $item->id, $item->siteId, $e->getMessage()), __METHOD__);
-
-            if (++$this->failuresInARow >= self::MAX_FAILURES_IN_A_ROW) {
-                throw new \Exception(sprintf('Stopped after %d pages failed in a row. The last failure: %s', $this->failuresInARow, $e->getMessage()), 0, $e);
-            }
-        }
+        return $item;
     }
 
     /**
@@ -74,9 +48,24 @@ class DetectLanguages extends BaseBatchedJob
      */
     protected function defaultDescription(): ?string
     {
-        return Craft::t('ai-hreflang', 'Detecting the languages of {type} on {site}', [
-            'type' => $this->elementType::pluralLowerDisplayName(),
-            'site' => Craft::$app->getSites()->getSiteById($this->siteId)?->getName() ?? $this->siteId,
-        ]);
+        return self::describe($this->siteId, $this->elementType, $this->force);
+    }
+
+    /**
+     * The description of the job for an element type's pages on a site, which tells pending jobs for the same pages
+     * apart from others.
+     *
+     * @param class-string<ElementInterface> $elementType
+     */
+    public static function describe(int $siteId, string $elementType, bool $force): string
+    {
+        $params = [
+            'type' => $elementType::pluralLowerDisplayName(),
+            'site' => Craft::$app->getSites()->getSiteById($siteId, true)?->getName() ?? $siteId,
+        ];
+
+        return $force
+            ? Craft::t('ai-hreflang', 'Re-detecting the languages of all {type} on {site}', $params)
+            : Craft::t('ai-hreflang', 'Detecting the languages of {type} on {site}', $params);
     }
 }

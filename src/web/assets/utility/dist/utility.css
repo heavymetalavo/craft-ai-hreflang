@@ -1,0 +1,107 @@
+/* AI Hreflang utility. Colours come from the control panel's own variables, so they follow its theme. */
+
+.aih-toolbar {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--hairline-color, rgba(0, 0, 0, 0.05));
+}
+
+.aih-intro,
+.aih-how {
+  margin-bottom: 24px;
+}
+
+.aih-how summary {
+  cursor: pointer;
+}
+
+.aih-how .readable {
+  margin-top: 8px;
+}
+
+.aih-scroll {
+  overflow-x: auto;
+}
+
+.aih-buttons {
+  margin: 0;
+}
+
+/* Coverage ring: the radius makes the circumference 100, so the percentage is the dash length */
+.aih-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.aih-ring svg {
+  flex: none;
+}
+
+.aih-ring-track {
+  stroke: var(--gray-200);
+}
+
+.aih-ring-100 { --aih-ring-color: var(--teal-600, #0f766e); }
+.aih-ring-90 { --aih-ring-color: var(--green-500, #22c55e); }
+.aih-ring-75 { --aih-ring-color: var(--yellow-500, #eab308); }
+.aih-ring-50 { --aih-ring-color: var(--amber-500, #f59e0b); }
+.aih-ring-0 { --aih-ring-color: var(--red-500, #ef4444); }
+
+.aih-ring-value {
+  stroke: var(--aih-ring-color);
+}
+
+/* hreflang bar: one segment per hreflang, sized and coloured inline from the data */
+.aih-bar {
+  min-width: 160px;
+}
+
+.aih-bar-track {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--gray-100);
+}
+
+.aih-bar-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 4px;
+}
+
+.aih-bar-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.aih-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.aih-own { background: var(--gray-300, #cbd5e1); }
+.aih-other { background: var(--orange-500, #f97316); }
+.aih-not-detected {
+  background: repeating-linear-gradient(-45deg, var(--gray-200, #e2e8f0) 0 2px, var(--gray-050, #f8fafc) 2px 4px);
+}
+
+.aih-status-label,
+.aih-status-label .status-label-text {
+  text-transform: none;
+}
+
+.aih-faint {
+  opacity: 0.5;
+}
+
+.aih-pagination {
+  margin-top: 12px;
+}

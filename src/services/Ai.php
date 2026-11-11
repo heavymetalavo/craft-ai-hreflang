@@ -6,12 +6,14 @@ use Craft;
 use craft\base\Component;
 use craft\helpers\App;
 use craft\helpers\Json;
-use Exception;
-use heavymetalavo\aihreflang\AiHreflang;
-use heavymetalavo\aihreflang\models\Settings;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
+use heavymetalavo\aihreflang\AiHreflang;
+use heavymetalavo\aihreflang\errors\AiException;
+use heavymetalavo\aihreflang\errors\ConfigurationException;
+use heavymetalavo\aihreflang\helpers\HttpClient;
+use heavymetalavo\aihreflang\models\Settings;
 
 /**
  * Asks the chosen AI provider which language a text is written in.
@@ -25,11 +27,6 @@ use GuzzleHttp\Exception\RequestException;
  */
 class Ai extends Component
 {
-    /**
-     * Default request timeout in seconds, used unless the project sets its own in config/guzzle.php.
-     */
-    public const DEFAULT_TIMEOUT = 30;
-
     /**
      * The most tokens the Messages API may reply with. A language code needs a few, but a model that thinks first,
      * such as `claude-haiku-5-5` through Langdock, where thinking isn't turned off, needs room to finish. Only the tokens
@@ -95,7 +92,10 @@ class Ai extends Component
         }
 
         if (!isset(Settings::PROVIDERS[$provider])) {
-            return Craft::t('ai-hreflang', '“{provider}” isn’t a supported AI provider. Choose Anthropic, OpenAI, Langdock or OpenRouter.', ['provider' => $provider]);
+            return Craft::t('ai-hreflang', '“{provider}” isn’t a supported AI provider. Choose one of: {providers}.', [
+                'provider' => $provider,
+                'providers' => implode(', ', Settings::PROVIDERS),
+            ]);
         }
 
         if ($this->getApiKey() === '') {
@@ -106,27 +106,51 @@ class Ai extends Component
             return Craft::t('ai-hreflang', 'No {provider} model is set.', ['provider' => $this->getProviderLabel()]);
         }
 
-        if ($provider === 'langdock' && !in_array($this->setting('langdockModelAuthor'), ['anthropic', 'openai'], true)) {
-            return Craft::t('ai-hreflang', 'The Langdock Model Author must be Anthropic or OpenAI.');
+        if ($provider === 'langdock' && !isset(Settings::LANGDOCK_MODEL_AUTHORS[$this->setting('langdockModelAuthor')])) {
+            return Craft::t('ai-hreflang', 'The Langdock Model Author must be one of: {authors}.', [
+                'authors' => implode(', ', Settings::LANGDOCK_MODEL_AUTHORS),
+            ]);
         }
 
         return null;
     }
 
     /**
+     * The instructions sent with each page's text: the `prompt` setting, or the default.
+     */
+    public function getInstructions(): string
+    {
+        return App::parseEnv(AiHreflang::getInstance()->getSettings()->prompt) ?: Settings::DEFAULT_PROMPT;
+    }
+
+    /**
+     * What a detection depends on besides the page's text: the provider, model and instructions. It's part of each
+     * page's hash, so changing any of them makes every page count as changed.
+     */
+    public function getFingerprint(): string
+    {
+        return implode("\n", [$this->getProvider(), $this->getModel(), $this->getInstructions()]);
+    }
+
+    /**
      * Detects the language a text is written in.
      *
-     * @return string|null BCP 47 language subtag, e.g. `en`, or null if the model replied `und` (undetermined)
-     * @throws Exception If the request fails or the model's reply isn't a language code
+     * @return string|null ISO 639-1 language code, e.g. `en`, or null if the model replied `und` (undetermined), or
+     * with a language that has no ISO 639-1 code, which hreflang can't express
+     * @throws ConfigurationException If the provider settings are incomplete
+     * @throws AiException If the request fails or the model's reply isn't a language code
      */
     public function detectLanguage(string $text): ?string
     {
         if ($error = $this->getConfigurationError()) {
-            throw new Exception($error);
+            throw new ConfigurationException($error);
         }
 
-        $instructions = App::parseEnv(AiHreflang::getInstance()->getSettings()->prompt) ?: Settings::DEFAULT_PROMPT;
+        $instructions = $this->getInstructions();
         $apiKey = $this->getApiKey();
+
+        // The page's text is marked out, so text in it that reads like an instruction is less likely to be followed
+        $text = "<page_text>\n$text\n</page_text>";
 
         $reply = match ($this->getProvider()) {
             // Thinking is turned off, as a language code needs none: left on, it can use up the reply's tokens
@@ -143,23 +167,42 @@ class Ai extends Component
                     'Authorization' => 'Bearer ' . $apiKey,
                 ], $instructions, $text),
             'openrouter' => $this->sendResponsesRequest('https://openrouter.ai/api/v1', $this->setting('openRouterReasoningEffort'), $instructions, $text),
+            // getConfigurationError() has already rejected any other provider
+            default => throw new ConfigurationException(sprintf('“%s” isn’t a supported AI provider.', $this->getProvider())),
         };
 
+        return $this->parseReply($reply);
+    }
+
+    /**
+     * The language code in a model's reply. A known ISO 639-1 code is the language, and `und`, or a known language
+     * with only a 3-letter code (such as `haw`), is undetermined, as hreflang needs an ISO 639-1 code. Anything else,
+     * such as `yes` or `the`, means the model didn't answer as asked, and fails.
+     *
+     * @throws AiException If the reply isn't a language code
+     */
+    public function parseReply(string $reply): ?string
+    {
         $code = strtolower(trim($reply, " \t\n\r\"'`."));
         $code = preg_split('/[-_]/', $code)[0];
+        $hreflang = AiHreflang::getInstance()->hreflang;
 
-        if (!preg_match('/^[a-z]{2,3}$/', $code)) {
-            throw new Exception(sprintf('%s replied with "%s", which isn’t a language code. Check the Prompt setting asks for one.', $this->getProviderLabel(), mb_strimwidth($reply, 0, 100, '…')));
+        if (in_array($code, $hreflang->getLanguageCodes(), true)) {
+            return $code;
         }
 
-        return $code === 'und' ? null : $code;
+        if ($code === 'und' || (strlen($code) === 3 && in_array($code, Craft::$app->getI18n()->getAllLocaleIds(), true))) {
+            return null;
+        }
+
+        throw new AiException(sprintf('%s replied with "%s", which isn’t an ISO 639-1 language code. Check the Prompt setting asks for one.', $this->getProviderLabel(), mb_strimwidth($reply, 0, 100, '…')));
     }
 
     /**
      * Sends a request to the Responses API and returns the model's reply.
      *
      * @param array $extra Extra request parameters, such as `store`
-     * @throws Exception
+     * @throws AiException
      */
     private function sendResponsesRequest(string $baseUrl, string $reasoningEffort, string $instructions, string $text, array $extra = []): string
     {
@@ -188,7 +231,7 @@ class Ai extends Component
         ], $payload);
 
         if (($data['status'] ?? null) === 'incomplete') {
-            throw new Exception(sprintf('%s returned an incomplete response (reason: %s).', $this->getProviderLabel(), $data['incomplete_details']['reason'] ?? 'unknown'));
+            throw new AiException(sprintf('%s returned an incomplete response (reason: %s).', $this->getProviderLabel(), $data['incomplete_details']['reason'] ?? 'unknown'));
         }
 
         foreach ($data['output'] ?? [] as $item) {
@@ -199,7 +242,7 @@ class Ai extends Component
             }
         }
 
-        throw new Exception(sprintf('%s returned no text.', $this->getProviderLabel()));
+        throw new AiException(sprintf('%s returned no text.', $this->getProviderLabel()));
     }
 
     /**
@@ -207,7 +250,7 @@ class Ai extends Component
      *
      * @param array<string, string> $headers The authentication headers
      * @param array $extra Extra request parameters, such as `thinking`
-     * @throws Exception
+     * @throws AiException
      */
     private function sendMessagesRequest(string $baseUrl, array $headers, string $instructions, string $text, array $extra = []): string
     {
@@ -232,14 +275,14 @@ class Ai extends Component
             }
         }
 
-        throw new Exception(sprintf('%s returned no text (stop reason: %s).', $this->getProviderLabel(), $data['stop_reason'] ?? 'unknown'));
+        throw new AiException(sprintf('%s returned no text (stop reason: %s).', $this->getProviderLabel(), $data['stop_reason'] ?? 'unknown'));
     }
 
     /**
      * Posts JSON to the provider and returns the decoded response.
      *
      * @param array<string, string> $headers
-     * @throws Exception If the request fails or the response is an error
+     * @throws AiException If the request fails or the response is an error
      */
     private function post(string $url, array $headers, array $payload): array
     {
@@ -258,20 +301,20 @@ class Ai extends Component
             Craft::error($label . ' API error: ' . trim($body ?: $e->getMessage()), __METHOD__);
             $data = json_decode($body, true);
 
-            throw new Exception($label . ' API error: ' . ((is_array($data) ? $this->errorMessage($data) : null) ?? $e->getMessage()), 0, $e);
+            throw new AiException($label . ' API error: ' . ((is_array($data) ? $this->errorMessage($data) : null) ?? $e->getMessage()), 0, $e);
         } catch (GuzzleException $e) {
-            throw new Exception($label . ' API request failed: ' . $e->getMessage(), 0, $e);
+            throw new AiException($label . ' API request failed: ' . $e->getMessage(), 0, $e);
         }
 
         // OpenRouter pads a slow response with leading whitespace while the model works
         $data = Json::decodeIfJson(trim((string)$response->getBody()));
 
         if (!is_array($data)) {
-            throw new Exception(sprintf('%s returned a response that isn’t JSON.', $label));
+            throw new AiException(sprintf('%s returned a response that isn’t JSON.', $label));
         }
 
         if (isset($data['error'])) {
-            throw new Exception($label . ' API error: ' . ($this->errorMessage($data) ?? Json::encode($data['error'])));
+            throw new AiException($label . ' API error: ' . ($this->errorMessage($data) ?? Json::encode($data['error'])));
         }
 
         return $data;
@@ -336,17 +379,11 @@ class Ai extends Component
     }
 
     /**
-     * The HTTP client for requests to AI providers, also used to fetch pages.
+     * The HTTP client for requests to AI providers.
      */
-    public function getClient(): Client
+    private function getClient(): Client
     {
-        if ($this->client === null) {
-            // Only supply a timeout when the project hasn't set one in config/guzzle.php, which this would override
-            $guzzleConfig = Craft::$app->getConfig()->getConfigFromFile('guzzle');
-            $this->client = Craft::createGuzzleClient(isset($guzzleConfig['timeout']) ? [] : ['timeout' => self::DEFAULT_TIMEOUT]);
-        }
-
-        return $this->client;
+        return $this->client ??= HttpClient::create();
     }
 
     private function setting(string $name): string

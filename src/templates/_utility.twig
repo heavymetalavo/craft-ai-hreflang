@@ -1,25 +1,17 @@
-{# Coverage as a small progress ring followed by the value, as in the AI Alt Text utility. The radius is 15.9155 so
-   the circumference is 100 and the percentage drives stroke-dasharray directly. #}
+{# Styles are in the UtilityAsset bundle. Only values from the data, such as a segment's width, are inline. #}
+
+{# Coverage as a small progress ring followed by the value. The radius is 15.9155 so the circumference is 100 and the
+   percentage drives stroke-dasharray directly. #}
 {% macro coverageRing(coverage) %}
     {%- if coverage is null -%}
         <span class="light">—</span>
     {%- else -%}
-        {%- if coverage >= 100 -%}
-            {%- set color = 'var(--success-color, #0f766e)' -%}
-        {%- elseif coverage >= 90 -%}
-            {%- set color = 'var(--green-500, #22c55e)' -%}
-        {%- elseif coverage >= 75 -%}
-            {%- set color = 'var(--yellow-500, #eab308)' -%}
-        {%- elseif coverage >= 50 -%}
-            {%- set color = 'var(--amber-500, #f59e0b)' -%}
-        {%- else -%}
-            {%- set color = 'var(--red-500, #ef4444)' -%}
-        {%- endif -%}
-        <span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
-            <svg viewBox="0 0 40 40" width="16" height="16" aria-hidden="true" focusable="false" style="flex: none;">
-                <circle cx="20" cy="20" r="15.9155" fill="none" stroke="var(--gray-200)" stroke-width="6"/>
+        {%- set level = coverage >= 100 ? 100 : (coverage >= 90 ? 90 : (coverage >= 75 ? 75 : (coverage >= 50 ? 50 : 0))) -%}
+        <span class="aih-ring aih-ring-{{ level }}">
+            <svg viewBox="0 0 40 40" width="16" height="16" aria-hidden="true" focusable="false">
+                <circle class="aih-ring-track" cx="20" cy="20" r="15.9155" fill="none" stroke-width="6"/>
                 {%- if coverage > 0 %}
-                <circle cx="20" cy="20" r="15.9155" fill="none" stroke="{{ color }}" stroke-width="6"
+                <circle class="aih-ring-value" cx="20" cy="20" r="15.9155" fill="none" stroke-width="6"
                         stroke-dasharray="{{ coverage|round(1) }} 100" stroke-linecap="round" transform="rotate(-90 20 20)"/>
                 {%- endif %}
             </svg>
@@ -29,21 +21,22 @@
 {% endmacro %}
 
 {# The share of a site's pages using each hreflang, as a stacked bar with a key below it. The site's own hreflang is
-   grey, others are coloured so pages served in another language stand out, and pages not detected yet are striped. #}
-{% macro hreflangBar(hreflangs, siteHreflang, notDetected, asText = false) %}
+   grey, others are coloured by language (the same language is the same colour on every site) so pages served in
+   another language stand out, and pages not detected yet are striped. #}
+{% macro hreflangBar(hreflangs, siteHreflang, notDetected, languageColors, asText = false) %}
     {%- set total = hreflangs|reduce((sum, count) => sum + count, 0) + notDetected -%}
     {%- if total == 0 -%}
         <span class="light">—</span>
     {%- else -%}
-        {#- Coloured by language, so English is the same colour on every site -#}
-        {%- set colors = { en: 'var(--blue-500, #3b82f6)', fr: 'var(--violet-500, #8b5cf6)', de: 'var(--pink-500, #ec4899)', it: 'var(--teal-500, #14b8a6)' } -%}
         {%- set segments = [] -%}
         {%- for code, count in hreflangs|filter(count => count > 0) -%}
+            {%- set language = code|split('-')|first|lower -%}
             {%- set segments = segments|merge([{
                 label: code,
                 code: not asText,
                 count: count,
-                color: code == siteHreflang ? 'var(--gray-300, #cbd5e1)' : colors[code|split('-')|first] ?? 'var(--orange-500, #f97316)',
+                class: code == siteHreflang ? 'aih-own' : (languageColors[language] is defined ? null : 'aih-other'),
+                color: code != siteHreflang ? languageColors[language] ?? null : null,
             }]) -%}
         {%- endfor -%}
         {%- if notDetected > 0 -%}
@@ -51,19 +44,20 @@
                 label: 'Not detected'|t('ai-hreflang'),
                 code: false,
                 count: notDetected,
-                color: 'repeating-linear-gradient(-45deg, var(--gray-200, #e2e8f0) 0 2px, var(--gray-050, #f8fafc) 2px 4px)',
+                class: 'aih-not-detected',
+                color: null,
             }]) -%}
         {%- endif -%}
-        <div style="min-width: 160px;">
-            <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--gray-100);" aria-hidden="true">
+        <div class="aih-bar">
+            <div class="aih-bar-track" aria-hidden="true">
                 {%- for segment in segments %}
-                    <span style="width: {{ segment.count / total * 100 }}%; background: {{ segment.color }};"></span>
+                    <span class="{{ segment.class }}" style="width: {{ segment.count / total * 100 }}%;{{ segment.color ? " background: #{segment.color};" }}"></span>
                 {%- endfor %}
             </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px;" class="smalltext">
+            <div class="aih-bar-key smalltext">
                 {%- for segment in segments %}
-                    <span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
-                        <span style="width: 8px; height: 8px; border-radius: 2px; background: {{ segment.color }}; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);" aria-hidden="true"></span>
+                    <span class="aih-bar-key-item">
+                        <span class="aih-swatch {{ segment.class }}"{% if segment.color %} style="background: {{ segment.color }};"{% endif %} aria-hidden="true"></span>
                         {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} ({{ segment.count|number }})
                     </span>
                 {%- endfor %}
@@ -73,9 +67,9 @@
 {% endmacro %}
 
 {% macro detectButtons(siteId, disabled) %}
-    <div class="buttons" style="margin: 0;">
+    <div class="buttons aih-buttons">
         {% for force in [false, true] %}
-            <form method="post" accept-charset="UTF-8">
+            <form method="post" accept-charset="UTF-8" onsubmit="this.querySelector('button').disabled = true">
                 {{ csrfInput() }}
                 {{ actionInput('ai-hreflang/utility/detect') }}
                 {{ redirectInput('utilities/ai-hreflang') }}
@@ -90,7 +84,7 @@
 {% endmacro %}
 
 {% if currentUser.admin %}
-    <div class="flex flex-nowrap" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
+    <div class="flex flex-nowrap aih-toolbar">
         <a href="{{ cpUrl('settings/plugins/ai-hreflang') }}" class="btn" data-icon="settings">{{ 'Plugin Settings'|t('ai-hreflang') }}</a>
     </div>
 {% endif %}
@@ -105,9 +99,12 @@
     </p>
 {% endif %}
 
-<div class="readable" style="margin-bottom: 24px;">
+<div class="readable aih-intro">
     <p>
         {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`.'|t('ai-hreflang')|md(inlineOnly=true) }}
+    </p>
+    <p>
+        {{ 'Two copies of a page can’t share an hreflang. When a copy’s language would give it the same hreflang as another copy, such as an untranslated page on an `es-US` site next to the `en-US` site’s page, it keeps its site’s own hreflang, and the clash is shown below and in the page’s Content Language field.'|t('ai-hreflang')|md(inlineOnly=true) }}
     </p>
     {% if not configurationError %}
         <p class="light">
@@ -116,18 +113,18 @@
     {% endif %}
 </div>
 
-<details id="how-pages-are-detected" style="margin-bottom: 24px;">
-    <summary style="cursor: pointer;"><strong>{{ 'How a page’s language is detected'|t('ai-hreflang') }}</strong></summary>
-    <div class="readable" style="margin-top: 8px;">
+<details id="how-pages-are-detected" class="aih-how">
+    <summary><strong>{{ 'How a page’s language is detected'|t('ai-hreflang') }}</strong></summary>
+    <div class="readable">
         <ul class="bullets">
             <li>{{ 'When a page is saved, a queue job for each site the save changed runs after caches such as Blitz’s have been cleared, fetches the live page there, and sends its text to the AI provider, which replies with the language it is written in.'|t('ai-hreflang') }}</li>
             <li>{{ (contentSelector
                 ? '**Read:** the text of the first element matching the [Content Selector]({url}), `{selector}`, or of the page’s `<body>` without its header and footer if none matches.'
                 : '**Read:** the text of the page’s `<body>`, without its header and footer, as the [Content Selector]({url}) is blank.')|t('ai-hreflang', { selector: contentSelector, url: cpUrl('settings/plugins/ai-hreflang') })|md(inlineOnly=true) }}</li>
-            <li>{{ '**Not read:** navigation, scripts, styles, SVGs and iframes, and pages that aren’t live, such as disabled, pending and expired pages, which can’t be fetched. A pending page is detected once it is live and saved again, or detected from here.'|t('ai-hreflang')|md(inlineOnly=true) }}</li>
+            <li>{{ '**Not read:** navigation, scripts, styles, SVGs, iframes, dialogs, form controls and hidden elements, and pages that aren’t live, such as disabled, pending and expired pages, which can’t be fetched. A pending page is detected once it is live and saved again, or detected from here.'|t('ai-hreflang')|md(inlineOnly=true) }}</li>
             <li>{{ 'Pages with fewer than {count, number} words aren’t sent, and keep their site’s own hreflang, as there isn’t enough text to tell their language reliably.'|t('ai-hreflang', { count: minimumWords }) }}</li>
-            <li>{{ 'The first {count, number} characters are sent, with the whitespace collapsed, and the [prompt]({url}) asks for the language most of the text is written in. Language detection needs little text, and less text costs less.'|t('ai-hreflang', { count: maxCharacters, url: cpUrl('settings/plugins/ai-hreflang') })|md(inlineOnly=true) }}</li>
-            <li>{{ 'A hash of the text is saved with the language, so a page whose text hasn’t changed isn’t sent again.'|t('ai-hreflang') }}</li>
+            <li>{{ 'The first {count, number} characters are sent, with the whitespace collapsed, and the [prompt]({url}) asks for the language most of the text is written in. Language detection needs little text, and less text costs less. Changes after those characters don’t make a page count as changed.'|t('ai-hreflang', { count: maxCharacters, url: cpUrl('settings/plugins/ai-hreflang') })|md(inlineOnly=true) }}</li>
+            <li>{{ 'A hash of the text, the provider, the model and the prompt is saved with the language, so a page isn’t sent again until one of them changes.'|t('ai-hreflang') }}</li>
             <li>{{ 'Pages whose language was chosen by an editor are skipped. If the AI provider can’t tell the language, the page keeps its site’s own hreflang.'|t('ai-hreflang') }}</li>
         </ul>
     </div>
@@ -142,10 +139,24 @@
 {% set totals = {
     total: stats|reduce((sum, row) => sum + row.total, 0),
     detected: stats|reduce((sum, row) => sum + row.detected, 0),
+    undetermined: stats|reduce((sum, row) => sum + row.undetermined, 0),
     chosen: stats|reduce((sum, row) => sum + row.chosen, 0),
+    clashes: stats|reduce((sum, row) => sum + row.clashes, 0),
 } %}
 
-<div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Content language coverage by site'|t('ai-hreflang') }}">
+{% macro notes(row) %}
+    {% if row.undetermined %}
+        <div class="light smalltext">{{ '{count, plural, =1{One page} other{# pages}} couldn’t be told or {count, plural, =1{was} other{were}} too short, so {count, plural, =1{it keeps} other{they keep}} the site’s hreflang.'|t('ai-hreflang', { count: row.undetermined }) }}</div>
+    {% endif %}
+    {% if row.chosen %}
+        <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang', { count: row.chosen }) }}</div>
+    {% endif %}
+    {% if row.clashes %}
+        <div class="smalltext warning">{{ '{count, plural, =1{One page clashes} other{# pages clash}} with another site’s hreflang, so {count, plural, =1{it keeps} other{they keep}} the site’s own.'|t('ai-hreflang', { count: row.clashes }) }}</div>
+    {% endif %}
+{% endmacro %}
+
+<div class="aih-scroll" tabindex="0" role="region" aria-label="{{ 'Content language coverage by site'|t('ai-hreflang') }}">
     <table class="data fullwidth">
         <thead>
             <tr>
@@ -167,10 +178,8 @@
                     {{ _self.hreflangBar({
                         (ownLabel): ownLanguage,
                         ('Another language'|t('ai-hreflang')): totals.detected - ownLanguage,
-                    }, ownLabel, totals.total - totals.detected, true) }}
-                    {% if totals.chosen %}
-                        <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang', { count: totals.chosen }) }}</div>
-                    {% endif %}
+                    }, ownLabel, totals.total - totals.detected, {}, true) }}
+                    {{ _self.notes(totals) }}
                 </td>
                 <td>{{ _self.detectButtons(null, configurationError) }}</td>
             </tr>
@@ -182,7 +191,10 @@
                     </th>
                     <td>{{ row.detected|number }} / {{ row.total|number }}</td>
                     <td>{{ _self.coverageRing(row.coverage) }}</td>
-                    <td>{{ _self.hreflangBar(row.hreflangs, row.siteHreflang, row.total - row.detected) }}</td>
+                    <td>
+                        {{ _self.hreflangBar(row.hreflangs, row.siteHreflang, row.total - row.detected, languageColors) }}
+                        {{ _self.notes(row) }}
+                    </td>
                     <td>{{ _self.detectButtons(row.site.id, configurationError) }}</td>
                 </tr>
             {% endfor %}
@@ -194,11 +206,11 @@
 
 <h2>{{ 'Pages in another language'|t('ai-hreflang') }}</h2>
 <p class="light">
-    {{ 'Pages written in a language other than their site’s on at least one site, with the hreflang each site gives them, most recently detected first. Highlighted values differ from the site’s own, and faint ones haven’t been detected yet.'|t('ai-hreflang') }}
+    {{ 'Pages written in a language other than their site’s on at least one site, with the hreflang each site gives them, most recently detected first. Highlighted values differ from the site’s own, faint ones haven’t been detected yet, and a warning marks a page that keeps its site’s hreflang because another site already uses the one it would have.'|t('ai-hreflang') }}
 </p>
 
 {% if otherLanguagePages %}
-    <div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Pages in another language'|t('ai-hreflang') }}">
+    <div class="aih-scroll" tabindex="0" role="region" aria-label="{{ 'Pages in another language'|t('ai-hreflang') }}">
         <table class="data fullwidth">
             <thead>
                 <tr>
@@ -217,14 +229,17 @@
                             <td>
                                 {% if cell %}
                                     <a href="{{ cell.element.cpEditUrl }}" title="{{ 'Edit on {site}'|t('ai-hreflang', { site: site.name }) }}">
-                                        {%- if cell.other -%}
-                                            <span class="status-label orange" style="text-transform: none;"><span class="status orange"></span><span class="status-label-text" style="text-transform: none;">{{ cell.hreflang }}</span></span>
+                                        {%- if cell.other and not cell.clash -%}
+                                            <span class="status-label orange aih-status-label"><span class="status orange"></span><span class="status-label-text">{{ cell.hreflang }}</span></span>
                                         {%- elseif cell.detected -%}
                                             <code>{{ cell.hreflang }}</code>
                                         {%- else -%}
-                                            <code class="light" style="opacity: .5;" title="{{ 'Not detected yet, so the site’s own hreflang is used'|t('ai-hreflang') }}">{{ cell.hreflang }}</code>
+                                            <code class="light aih-faint" title="{{ 'Not detected yet, so the site’s own hreflang is used'|t('ai-hreflang') }}">{{ cell.hreflang }}</code>
                                         {%- endif -%}
                                     </a>
+                                    {% if cell.clash %}
+                                        <div class="smalltext warning">{{ 'Would be {clash}, but {sites} already uses it'|t('ai-hreflang', { clash: cell.clash, sites: cell.clashSites|join(', ') }) }}</div>
+                                    {% endif %}
                                     {% if cell.chosen %}<span class="light smalltext">{{ '(chosen)'|t('ai-hreflang') }}</span>{% endif %}
                                 {% else %}
                                     <span class="light">—</span>
@@ -236,7 +251,7 @@
             </tbody>
         </table>
     </div>
-    <div style="margin-top: 12px;">
+    <div class="aih-pagination">
         {% include '_includes/pagination' with { pageInfo: pageInfo, itemLabel: 'page'|t('ai-hreflang'), itemsLabel: 'pages'|t('ai-hreflang') } %}
     </div>
 {% else %}

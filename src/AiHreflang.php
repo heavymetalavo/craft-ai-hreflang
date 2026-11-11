@@ -15,12 +15,16 @@ use craft\events\RegisterComponentTypesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
+use craft\web\twig\variables\CraftVariable;
 use heavymetalavo\aihreflang\fields\ContentLanguage;
 use heavymetalavo\aihreflang\models\Settings;
 use heavymetalavo\aihreflang\services\Ai;
 use heavymetalavo\aihreflang\services\Detector;
 use heavymetalavo\aihreflang\services\Hreflang;
+use heavymetalavo\aihreflang\services\PageReader;
+use heavymetalavo\aihreflang\services\Report;
 use heavymetalavo\aihreflang\utilities\AiHreflangUtility;
+use heavymetalavo\aihreflang\variables\AiHreflangVariable;
 use nystudio107\seomatic\events\AddDynamicMetaEvent;
 use nystudio107\seomatic\helpers\DynamicMeta;
 use putyourlightson\blitz\events\RefreshCacheEvent;
@@ -38,11 +42,14 @@ use yii\base\Event;
  * @property-read Ai $ai
  * @property-read Detector $detector
  * @property-read Hreflang $hreflang
+ * @property-read PageReader $pageReader
+ * @property-read Report $report
  */
 class AiHreflang extends Plugin
 {
     /**
-     * Handle of the Content Language field the plugin creates.
+     * Handle of the Content Language field the plugin creates. The plugin finds the field by its type, so the handle
+     * can be changed.
      */
     public const FIELD_HANDLE = 'contentLanguage';
 
@@ -62,6 +69,8 @@ class AiHreflang extends Plugin
                 'ai' => Ai::class,
                 'detector' => Detector::class,
                 'hreflang' => Hreflang::class,
+                'pageReader' => PageReader::class,
+                'report' => Report::class,
             ],
         ];
     }
@@ -91,6 +100,16 @@ class AiHreflang extends Plugin
                 if ($event->plugin === $this) {
                     $this->createField();
                 }
+            }
+        );
+
+        Event::on(
+            CraftVariable::class,
+            CraftVariable::EVENT_INIT,
+            function(Event $event) {
+                /** @var CraftVariable $variable */
+                $variable = $event->sender;
+                $variable->set('aiHreflang', AiHreflangVariable::class);
             }
         );
 
@@ -178,6 +197,25 @@ class AiHreflang extends Plugin
         }
     }
 
+    /**
+     * Deletes the Content Language field the plugin created, as its values mean nothing without the plugin, and its
+     * field type won't exist, unless the project config is being applied, which deletes it from the config instead.
+     */
+    protected function beforeUninstall(): void
+    {
+        $projectConfig = Craft::$app->getProjectConfig();
+        $fields = Craft::$app->getFields();
+        $field = $fields->getFieldByUid(self::FIELD_UID);
+
+        if ($field === null || $projectConfig->getIsApplyingExternalChanges() || $projectConfig->readOnly) {
+            return;
+        }
+
+        if (!$fields->deleteField($field)) {
+            Craft::error('Couldn’t delete the Content Language field.', __METHOD__);
+        }
+    }
+
     protected function createSettingsModel(): ?Model
     {
         return Craft::createObject(Settings::class);
@@ -188,6 +226,9 @@ class AiHreflang extends Plugin
         return Craft::$app->getView()->renderTemplate('ai-hreflang/_settings', [
             'settings' => $this->getSettings(),
             'ai' => $this->ai,
+            'providers' => Settings::PROVIDERS,
+            'langdockModelAuthors' => Settings::LANGDOCK_MODEL_AUTHORS,
+            'reasoningEfforts' => Settings::REASONING_EFFORTS,
         ]);
     }
 }

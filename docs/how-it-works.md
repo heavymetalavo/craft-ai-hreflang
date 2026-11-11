@@ -13,16 +13,34 @@ How pages are read and detected, and how their hreflang values are written.
    detected, and nor can pages behind a password, such as on a protected staging site.
 2. If a site's text has at least 10 words and has changed since it was last detected, the first 2,000 characters are
    sent to the chosen AI provider with the prompt, which asks for the language's ISO 639-1 code (e.g. `en`), or `und`
-   if it can't be told (the page then keeps its site's own hreflang). The code is saved to the Content Language field
-   with a hash of the text, so unchanged text isn't sent again.
+   if it can't be told (the page then keeps its site's own hreflang). A reply that isn't a known ISO 639-1 code fails,
+   and a language that only has a longer code, such as Hawaiian (`haw`), counts as `und`, as hreflang needs an ISO
+   639-1 code. The code is saved to the Content Language field with a hash of the text, the provider, the model and
+   the prompt, so a page isn't sent again until one of them changes. Only the characters sent count, so changes after
+   the first 2,000 don't.
 3. When a page is rendered, SEOmatic's alternate links are rewritten from each site's Content Language: the detected
    language with the site's region, as a BCP 47 language tag such as `en-FR`. A page that hasn't been detected keeps
-   its site's own hreflang. `x-default` is left alone.
+   its site's own hreflang, and so does a page whose hreflang would clash with another site's (see below).
+   `x-default` is left alone.
 
 hreflang values are written in the format of the sites' language settings (`en-GB`), for every alternate link on a
 page, rather than SEOmatic's lower case (`en-gb`). They're case-insensitive, so both mean the same. With the
 **hreflang Format** setting on **Language only**, they're the language alone (`en`). See
 [Settings](settings.md#-hreflang).
+
+## 🚦 When two copies would share an hreflang
+
+Each copy of a page must have its own hreflang, or search engines can't tell which URL is for whom. A copy in
+another language can clash with another copy:
+
+- **Sites in the same country**, such as `en-US` and `es-US`, `en-CA` and `fr-CA`, or `de-CH`, `fr-CH` and `it-CH`:
+  an `es-US` page still in English would be `en-US`, the same as the `en-US` site's page.
+- **Sites without a region**, such as `en` and `fr`: a French page still in English would be `en`.
+- **Language only** format: any page in another site's language.
+
+The copy then keeps its site's own hreflang, as if it hadn't been detected. The clash is shown in the page's Content
+Language field, in the utility's coverage and its list of pages in another language, and in the notice of **Detect
+content language**. Translating the page, or choosing its language in the field, resolves it.
 
 ## 🗂️ Which sites are detected on save
 
@@ -33,7 +51,13 @@ Every site is queued for a new page, and when nested entries such as Matrix bloc
 sites by their own rules. Editing only fields that are translated for each site queues just the site being edited.
 
 With Blitz refreshing its cache, Blitz decides instead: each page it refreshes is queued, on the site it was
-refreshed for. See [Page caches](getting-started.md#-page-caches).
+refreshed for, in one job for the whole refresh. A refresh caused by the plugin saving a page's own detection isn't
+detected again. See [Page caches](getting-started.md#-page-caches).
+
+Saves made in the queue or on the command line, such as imports, are queued straight away rather than at the end of
+the request, as a queue worker's request doesn't end until the worker stops.
+
+Nothing is queued until an AI provider, API key and model are set.
 
 A queued site whose page text hasn't changed since it was last detected isn't sent to the AI provider.
 
@@ -52,13 +76,18 @@ The text comes from the live page rather than its element's fields, as an elemen
 show, such as SEO descriptions or notes for editors, which can be in another language. Only the page's main content is
 read, `<main>` unless the **Content Selector** setting names another element, as the navigation, footer and cookie
 banner around it are in the site's language, and would bias detection towards it on exactly the pages that are still
-in English.
+in English. Within it, navigation, dialogs, form controls, and elements with `hidden` or `aria-hidden="true"` are left
+out too.
+
+The text is sent between `<page_text>` tags, and the default prompt tells the model to ignore any instructions in it,
+so text on a page, such as a visitor's comment, can't easily choose the page's language.
 
 ## 🚧 Limitations
 
-- Without SEOmatic, languages are still detected, but no hreflang tags are changed.
+- Without SEOmatic, languages are still detected, but no hreflang tags are output for you: use
+  [`craft.aiHreflang.alternates()`](../README.md#outputting-the-hreflang-tags) in your templates.
 - SEOmatic's sitemaps still list each alternate with its site's language, as SEOmatic offers no way to change them.
 - The `<html lang>` attribute isn't changed.
-- A page's text can change without its element being saved, such as when a global or related entry it shows changes,
-  or a scheduled entry goes live. Those pages are detected the next time they're saved, or with **Detect missing** in
-  the utility.
+- Without Blitz, a page's text can change without its element being saved, such as when a global or related entry it
+  shows changes, or a scheduled entry goes live. Those pages are detected the next time they're saved, or with
+  **Detect missing** in the utility. With Blitz, they're detected when Blitz refreshes them.

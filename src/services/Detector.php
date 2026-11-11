@@ -14,23 +14,21 @@ use craft\elements\Entry;
 use craft\enums\MenuItemType;
 use craft\events\DefineMenuItemsEvent;
 use craft\helpers\Db;
-use craft\helpers\UrlHelper;
-use craft\models\Site;
+use craft\helpers\Queue as QueueHelper;
 use DateTime;
-use DOMDocument;
-use DOMXPath;
-use GuzzleHttp\Exception\GuzzleException;
-use Symfony\Component\CssSelector\CssSelectorConverter;
-use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
 use heavymetalavo\aihreflang\AiHreflang;
+use heavymetalavo\aihreflang\fields\ContentLanguage;
+use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
 use heavymetalavo\aihreflang\jobs\DetectElementLanguage;
+use heavymetalavo\aihreflang\jobs\DetectSiteUris;
+use putyourlightson\blitz\Blitz;
 use Throwable;
 
 /**
  * Detects the language of pages' text and saves it to their Content Language field.
  *
  * A page is an element of a type that can have URLs, such as an entry, category or Commerce product, whose field
- * layout has the Content Language field.
+ * layout has a Content Language field. The field is found by its type, so its handle can be anything.
  *
  * @package heavymetalavo\aihreflang\services
  */
@@ -50,12 +48,15 @@ class Detector extends Component
     public const MINIMUM_WORDS = 10;
 
     /**
-     * Elements whose text isn't read from a fetched page, as they aren't shown or aren't the page's own content.
+     * How long, in seconds, a page's own detection save is remembered, so the Blitz refresh it causes doesn't detect
+     * the page again.
+     *
+     * @see wasJustSaved()
      */
-    private const SKIPPED_ELEMENTS = ['script', 'style', 'noscript', 'template', 'svg', 'iframe', 'nav'];
+    private const JUST_SAVED_DURATION = 600;
 
     /**
-     * @var array<class-string<ElementInterface>, int[]>|null
+     * @var array<class-string<ElementInterface>, array<int, ContentLanguage>>|null
      * @see getElementTypes()
      */
     private ?array $elementTypes = null;
@@ -73,9 +74,11 @@ class Detector extends Component
      * copy Craft recorded changes to, such as from a field that isn't translated for each site, and sites that haven't
      * been detected yet. When the changes can't be told, every site is queued.
      *
-     * The jobs are queued at the end of the request, with the `queuePriority` setting, so they run after jobs that
-     * clear page caches. With Blitz refreshing its cache, nothing is queued here: handleBlitzRefresh() queues the
-     * pages Blitz refreshes instead.
+     * In a web request the jobs are queued at the end of it, so a page saved more than once is queued once. In a
+     * console request, such as a queue worker running an import, they're queued straight away, as a long-running
+     * worker's request doesn't end. They have the `queuePriority` setting, so they run after jobs that clear page
+     * caches. With Blitz refreshing its cache, nothing is queued here: handleBlitzRefresh() queues the pages Blitz
+     * refreshes instead.
      */
     public function handleElementSave(ElementInterface $element): void
     {
@@ -88,6 +91,7 @@ class Detector extends Component
             || $element->getIsRevision()
             || !$this->hasField($element)
             || $this->usesBlitz()
+            || AiHreflang::getInstance()->ai->getConfigurationError() !== null
         ) {
             return;
         }
@@ -102,7 +106,9 @@ class Detector extends Component
             $siteIds = array_intersect($siteIds, [$element->siteId, ...$changedSiteIds, ...$this->getUndetectedSiteIds($element)]);
         }
 
-        if ($siteIds && !$this->pendingJobs) {
+        $isConsole = Craft::$app->getRequest()->getIsConsoleRequest();
+
+        if ($siteIds && !$this->pendingJobs && !$isConsole) {
             Craft::$app->onAfterRequest(fn() => $this->pushPendingJobs());
         }
 
@@ -113,6 +119,10 @@ class Detector extends Component
                 'siteId' => $siteId,
             ]);
         }
+
+        if ($isConsole) {
+            $this->pushPendingJobs();
+        }
     }
 
     /**
@@ -122,43 +132,64 @@ class Detector extends Component
      */
     public function usesBlitz(): bool
     {
-        /** @var \putyourlightson\blitz\Blitz|null $blitz */
         $blitz = Craft::$app->getPlugins()->getPlugin('blitz');
 
-        return $blitz !== null && $blitz->getSettings()->refreshCacheEnabled;
+        return $blitz instanceof Blitz && $blitz->settings->refreshCacheEnabled;
     }
 
     /**
-     * Queues detection for the pages Blitz just refreshed: one job for each page with the Content Language field, on an
-     * enabled site. Runs inside Blitz's refresh, after it has cleared the pages, so they're queued straight away.
+     * Queues detection for the pages Blitz just refreshed, in one job, which finds each page's element. Runs inside
+     * Blitz's refresh, after it has cleared the pages, so the job is queued straight away. A refresh of a whole site
+     * can list thousands of URIs, so nothing is looked up here.
      *
      * @param \putyourlightson\blitz\models\SiteUriModel[] $siteUris
      */
     public function handleBlitzRefresh(array $siteUris): void
     {
-        if (!AiHreflang::getInstance()->getSettings()->detectOnSave || !$this->usesBlitz()) {
+        $plugin = AiHreflang::getInstance();
+
+        if (!$plugin->getSettings()->detectOnSave || !$this->usesBlitz() || $plugin->ai->getConfigurationError() !== null) {
             return;
         }
 
         $enabledSiteIds = Craft::$app->getSites()->getAllSiteIds(false);
-        $priority = AiHreflang::getInstance()->getSettings()->queuePriority;
+        $pages = [];
 
         foreach ($siteUris as $siteUri) {
             // Pages with a query string, such as pagination, aren't elements' own pages
-            if (!in_array((int)$siteUri->siteId, $enabledSiteIds) || str_contains($siteUri->uri, '?')) {
-                continue;
-            }
-
-            $element = Craft::$app->getElements()->getElementByUri($siteUri->uri, (int)$siteUri->siteId, true);
-
-            if ($element !== null && $this->hasField($element)) {
-                Craft::$app->getQueue()->priority($priority)->push(new DetectElementLanguage([
-                    'elementId' => $element->id,
-                    'elementType' => $element::class,
-                    'siteId' => $element->siteId,
-                ]));
+            if (in_array((int)$siteUri->siteId, $enabledSiteIds) && !str_contains($siteUri->uri, '?')) {
+                $pages[] = ['siteId' => (int)$siteUri->siteId, 'uri' => $siteUri->uri];
             }
         }
+
+        if ($pages) {
+            QueueHelper::push(new DetectSiteUris(['siteUris' => $pages]), $plugin->getSettings()->queuePriority);
+        }
+    }
+
+    /**
+     * Whether a page's last change was this plugin saving its detection, which makes Blitz refresh it. Its text
+     * hasn't changed since it was detected, so it needn't be fetched again. Only the first refresh after the save is
+     * skipped, and only while nothing else has saved the page since, which would change its `dateUpdated`.
+     */
+    public function wasJustSaved(ElementInterface $element): bool
+    {
+        $cache = Craft::$app->getCache();
+        $key = $this->justSavedKey($element);
+        $dateUpdated = $cache->get($key);
+
+        if ($dateUpdated === false) {
+            return false;
+        }
+
+        $cache->delete($key);
+
+        return $dateUpdated === $element->dateUpdated?->getTimestamp();
+    }
+
+    private function justSavedKey(ElementInterface $element): string
+    {
+        return sprintf('ai-hreflang:saved:%d:%d', $element->id, $element->siteId);
     }
 
     /**
@@ -169,7 +200,7 @@ class Detector extends Component
         $priority = AiHreflang::getInstance()->getSettings()->queuePriority;
 
         foreach ($this->pendingJobs as $job) {
-            Craft::$app->getQueue()->priority($priority)->push($job);
+            QueueHelper::push($job, $priority);
         }
 
         $this->pendingJobs = [];
@@ -218,13 +249,10 @@ class Detector extends Component
         $siteIds = [];
 
         foreach ($element::find()->id($element->id)->site('*')->unique(false)->status(null)->all() as $siteElement) {
-            if ($this->hasField($siteElement)) {
-                /** @var ContentLanguageData $value */
-                $value = $siteElement->getFieldValue(AiHreflang::FIELD_HANDLE);
+            $value = $this->getValue($siteElement);
 
-                if ($value->auto && $value->hash === null) {
-                    $siteIds[] = $siteElement->siteId;
-                }
+            if ($value !== null && $value->auto && $value->hash === null) {
+                $siteIds[] = $siteElement->siteId;
             }
         }
 
@@ -232,16 +260,19 @@ class Detector extends Component
     }
 
     /**
-     * Adds "Detect content language" to the action menu of a page's element. It detects the language on the site
-     * being edited straight away, then reloads the page so the field shows it.
+     * Adds "Detect content language" to the action menu of a page's element. It detects the language of the
+     * published page on the site being edited straight away, then reloads the page so the field shows it.
      */
     public function addActionMenuItem(ElementInterface $element, DefineMenuItemsEvent $event): void
     {
+        $user = Craft::$app->getUser()->getIdentity();
+
         if (
             !$element::hasUris()
+            || $user === null
             || !Craft::$app->getRequest()->getIsCpRequest()
             || !$this->hasField($element)
-            || !$element->getCanonical()->canSave(Craft::$app->getUser()->getIdentity())
+            || !$element->getCanonical()->canSave($user)
         ) {
             return;
         }
@@ -267,10 +298,13 @@ class Detector extends Component
 
         $view->registerJsWithVars(fn($id, $elementId, $siteId) => <<<JS
 $('#' + $id).on('activate', () => {
-  Craft.cp.displayNotice(Craft.t('ai-hreflang', 'Detecting the content language…'));
+  Craft.cp.displayNotice(Craft.t('ai-hreflang', 'Detecting the content language of the published page…'));
   Craft.sendActionRequest('POST', 'ai-hreflang/element/detect', {data: {elementId: $elementId, siteId: $siteId}})
     .then((response) => {
       Craft.cp.displayNotice(response.data.message);
+      if (!response.data.detected) {
+        return;
+      }
       if (Craft.cp.elementIndex) {
         Craft.cp.elementIndex.updateElements();
       } else {
@@ -292,26 +326,34 @@ JS, [
      * Detects the language of a page on its site and saves it, unless an editor chose the language or the text hasn't
      * changed since it was last detected.
      *
+     * The saved hash covers the text and what the detection depends on (the provider, model and prompt), so changing
+     * any of them makes the page count as changed. Only the first `maxCharacters` characters of the text are read, so
+     * changes after them don't.
+     *
      * @param bool $force Detect even if the text hasn't changed
      * @return string One of the RESULT_* constants
-     * @throws Throwable If the AI provider fails or the element can't be saved
+     * @throws Throwable If the page can't be fetched, the AI provider fails or the element can't be saved
      */
     public function detect(ElementInterface $element, bool $force = false): string
     {
-        /** @var ContentLanguageData $value */
-        $value = $element->getFieldValue(AiHreflang::FIELD_HANDLE);
+        $plugin = AiHreflang::getInstance();
+        $value = $this->getValue($element);
+
+        if ($value === null) {
+            return self::RESULT_NO_PAGE;
+        }
 
         if (!$value->auto) {
             return self::RESULT_CHOSEN;
         }
 
-        $text = $this->getText($element);
+        $text = $plugin->pageReader->getText($element);
 
         if ($text === null) {
             return self::RESULT_NO_PAGE;
         }
 
-        $hash = sha1($text);
+        $hash = sha1($plugin->ai->getFingerprint() . "\n" . $text);
 
         // Too little text to tell its language reliably isn't sent, and keeps the site's own hreflang. Its hash is
         // saved, so the page counts as detected and isn't queued again until its text changes.
@@ -327,7 +369,7 @@ JS, [
             return self::RESULT_UNCHANGED;
         }
 
-        $language = AiHreflang::getInstance()->ai->detectLanguage($text);
+        $language = $plugin->ai->detectLanguage($text);
 
         Craft::info(sprintf('Detected "%s" for %s %d on site %d.', $language ?? 'und', $element::lowerDisplayName(), $element->id, $element->siteId), __METHOD__);
 
@@ -349,61 +391,58 @@ JS, [
      */
     private function save(ElementInterface $element, ContentLanguageData $value): void
     {
-        $element->setFieldValue(AiHreflang::FIELD_HANDLE, $value);
+        $element->setFieldValue($this->getField($element)->handle, $value);
 
-        // Saved as a resave, so no revision is made and handleElementSave() ignores it, for this site only, without
-        // validation, which an unrelated required field could fail. Blitz and SEOmatic still clear their caches.
+        // Saved as a resave, so no revision is made, its `dateUpdated` is kept and handleElementSave() ignores it, for
+        // this site only, without validation, which an unrelated required field could fail. Blitz and SEOmatic still
+        // clear their caches, as the page's hreflang has changed.
         $element->resaving = true;
 
         if (!Craft::$app->getElements()->saveElement($element, false, false, false)) {
             throw new \Exception(sprintf('%s %d couldn’t be saved on site %d.', $element::displayName(), $element->id, $element->siteId));
         }
 
+        Craft::$app->getCache()->set($this->justSavedKey($element), $element->dateUpdated?->getTimestamp(), self::JUST_SAVED_DURATION);
     }
 
     /**
-     * The text of a page on its site that's sent to the AI provider, cut to the `maxCharacters` setting.
-     *
-     * @return string|null Null when the element has no live page, or its site has no public pages
-     * @throws \Exception If the page can't be fetched
+     * The Content Language field in an element's field layout, or null if it has none. If a layout has more than
+     * one, the first is used.
      */
-    public function getText(ElementInterface $element): ?string
+    public function getField(ElementInterface $element): ?ContentLanguage
     {
-        if (
-            !$this->isSitePublic($element->getSite())
-            || $element->getStatus() !== $this->getLiveStatus($element::class)
-            || ($url = $element->getUrl()) === null
-        ) {
-            return null;
+        foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
+            if ($field instanceof ContentLanguage) {
+                return $field;
+            }
         }
 
-        $text = preg_replace('/\s+/u', ' ', $this->fetchText($url));
-
-        return mb_substr(trim($text), 0, AiHreflang::getInstance()->getSettings()->maxCharacters);
+        return null;
     }
 
     /**
-     * Whether a site has public pages: it's enabled and has a base URL. A site without a base URL gives its pages
-     * root-relative URLs, which would be fetched from the primary site's host, so another site's page would be read.
+     * The value of an element's Content Language field, or null if its field layout has none.
      */
-    public function isSitePublic(Site $site): bool
+    public function getValue(ElementInterface $element): ?ContentLanguageData
     {
-        return $site->getEnabled() && ($site->getBaseUrl() ?? '') !== '';
+        $field = $this->getField($element);
+
+        return $field ? $element->getFieldValue($field->handle) : null;
     }
 
     /**
-     * Whether an element's field layout has the Content Language field.
+     * Whether an element's field layout has a Content Language field.
      */
     public function hasField(ElementInterface $element): bool
     {
-        return $element->getFieldLayout()?->getFieldByHandle(AiHreflang::FIELD_HANDLE) !== null;
+        return $this->getField($element) !== null;
     }
 
     /**
-     * The element types that can have pages and have the Content Language field in at least one of their field
-     * layouts, with the IDs of those layouts.
+     * The element types that can have pages and have a Content Language field in at least one of their field
+     * layouts, with the field in each of those layouts, by layout ID.
      *
-     * @return array<class-string<ElementInterface>, int[]>
+     * @return array<class-string<ElementInterface>, array<int, ContentLanguage>>
      */
     public function getElementTypes(): array
     {
@@ -420,8 +459,15 @@ JS, [
             }
 
             foreach (Craft::$app->getFields()->getLayoutsByType($elementType) as $layout) {
-                if ($layout->id !== null && $layout->getFieldByHandle(AiHreflang::FIELD_HANDLE) !== null) {
-                    $this->elementTypes[$elementType][] = $layout->id;
+                if ($layout->id === null) {
+                    continue;
+                }
+
+                foreach ($layout->getCustomFields() as $field) {
+                    if ($field instanceof ContentLanguage) {
+                        $this->elementTypes[$elementType][$layout->id] = $field;
+                        break;
+                    }
                 }
             }
         }
@@ -441,7 +487,8 @@ JS, [
     }
 
     /**
-     * A query for the pages of an element type that are detected on a site.
+     * A query for the pages of an element type that are detected on a site. Elements without a URL, such as entries in
+     * a section without URLs, aren't pages, so they're left out.
      *
      * @param class-string<ElementInterface> $elementType
      */
@@ -452,178 +499,8 @@ JS, [
 
         return $query
             ->siteId($siteId)
+            ->uri(':notempty:')
             ->status($this->getLiveStatus($elementType))
-            ->andWhere(['elements.fieldLayoutId' => $this->getElementTypes()[$elementType] ?? [0]]);
-    }
-
-    /**
-     * Counts of each site's pages: how many there are, how many have been detected, how many an editor chose, and how
-     * many use each hreflang, the site's own first.
-     *
-     * @return array<int, array{site: Site, siteHreflang: string, total: int, detected: int, chosen: int, coverage: float|null, hreflangs: array<string, int>}>
-     */
-    public function getStats(): array
-    {
-        $handle = AiHreflang::FIELD_HANDLE;
-        $hreflang = AiHreflang::getInstance()->hreflang;
-        $stats = [];
-
-        foreach (Craft::$app->getSites()->getAllSites(false) as $site) {
-            $siteHreflang = $hreflang->getHreflang($site, null);
-            $hreflangs = [];
-            $chosen = 0;
-            $total = 0;
-
-            foreach (array_keys($this->getElementTypes()) as $elementType) {
-                foreach ($this->pagesQuery($elementType, $site->id)->$handle(':notempty:')->each() as $element) {
-                    /** @var ContentLanguageData $value */
-                    $value = $element->getFieldValue($handle);
-                    $code = $hreflang->getHreflang($site, $value->language);
-                    $hreflangs[$code] = ($hreflangs[$code] ?? 0) + 1;
-                    $chosen += $value->auto ? 0 : 1;
-                }
-
-                $total += $this->pagesQuery($elementType, $site->id)->count();
-            }
-            arsort($hreflangs);
-            $hreflangs = [$siteHreflang => $hreflangs[$siteHreflang] ?? 0] + $hreflangs;
-
-            $detected = array_sum($hreflangs);
-
-            $stats[$site->id] = [
-                'site' => $site,
-                'siteHreflang' => $siteHreflang,
-                'total' => $total,
-                'detected' => $detected,
-                'chosen' => $chosen,
-                'coverage' => $total ? $detected / $total * 100 : null,
-                'hreflangs' => $hreflangs,
-            ];
-        }
-
-        return $stats;
-    }
-
-    /**
-     * A page of the pages in a language other than their site's on at least one site, most recently detected first.
-     * Each row has the page on every site it's on, so a page that's still the English copy on several sites shows on
-     * one row.
-     *
-     * @return array{total: int, rows: array<int, array{element: ElementInterface, sites: array<int, array{element: ElementInterface, hreflang: string, detected: bool, other: bool, chosen: bool}>}>}
-     */
-    public function getOtherLanguagePages(int $offset, int $limit): array
-    {
-        $handle = AiHreflang::FIELD_HANDLE;
-        $hreflang = AiHreflang::getInstance()->hreflang;
-        $detectedAt = [];
-        $elementTypes = [];
-
-        foreach (Craft::$app->getSites()->getAllSites(false) as $site) {
-            $siteLanguage = $hreflang->getLanguageCode($site->language);
-
-            foreach (array_keys($this->getElementTypes()) as $elementType) {
-                $query = $this->pagesQuery($elementType, $site->id)->$handle(['and', ':notempty:', 'not ' . $siteLanguage]);
-
-                foreach ($query->each() as $element) {
-                    $time = $element->getFieldValue($handle)->detectedAt?->getTimestamp() ?? 0;
-                    $detectedAt[$element->id] = max($detectedAt[$element->id] ?? 0, $time);
-                    $elementTypes[$element->id] = $elementType;
-                }
-            }
-        }
-
-        arsort($detectedAt);
-        $ids = array_slice(array_keys($detectedAt), $offset, $limit);
-        $rows = array_fill_keys($ids, null);
-
-        // Each row's element on every site, queried by element type
-        $idsByType = [];
-        foreach ($ids as $id) {
-            $idsByType[$elementTypes[$id]][] = $id;
-        }
-
-        $siteElements = [];
-        foreach ($idsByType as $elementType => $typeIds) {
-            $siteElements = [...$siteElements, ...$elementType::find()
-                ->id($typeIds)
-                ->site('*')
-                ->unique(false)
-                ->status($this->getLiveStatus($elementType))
-                ->all()];
-        }
-
-        foreach ($siteElements as $siteElement) {
-            /** @var ContentLanguageData $value */
-            $value = $siteElement->getFieldValue($handle);
-            $site = $siteElement->getSite();
-            $rows[$siteElement->id] ??= ['element' => $siteElement, 'sites' => []];
-            $rows[$siteElement->id]['sites'][$site->id] = [
-                'element' => $siteElement,
-                'hreflang' => $hreflang->getHreflang($site, $value->language),
-                'detected' => $value->language !== null,
-                'other' => $value->language !== null && $value->language !== $hreflang->getLanguageCode($site->language),
-                'chosen' => !$value->auto,
-            ];
-
-            if ($site->primary) {
-                $rows[$siteElement->id]['element'] = $siteElement;
-            }
-        }
-
-        return ['total' => count($detectedAt), 'rows' => array_filter($rows)];
-    }
-
-    /**
-     * Fetches a page and returns the text of the first element the `contentSelector` setting matches (`main` by
-     * default), or of its `<body>` without the site's header and footer if none matches, leaving out SKIPPED_ELEMENTS.
-     *
-     * @throws \Exception If the page can't be fetched
-     */
-    private function fetchText(string $url): string
-    {
-        // A site with a relative base URL, such as `/fr`, gives root-relative URLs outside a site request, so they're
-        // on the primary site's host
-        if (UrlHelper::isRootRelativeUrl($url)) {
-            $url = UrlHelper::hostInfo(Craft::$app->getSites()->getPrimarySite()->getBaseUrl() ?? '') . $url;
-        }
-
-        try {
-            $html = (string)AiHreflang::getInstance()->ai->getClient()
-                ->get($url, ['headers' => ['Accept' => 'text/html']])
-                ->getBody();
-        } catch (GuzzleException $e) {
-            throw new \Exception(sprintf('The page %s couldn’t be fetched: %s', $url, $e->getMessage()), 0, $e);
-        }
-
-        $doc = new DOMDocument('1.0', 'UTF-8');
-        $previous = libxml_use_internal_errors(true);
-        $doc->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NONET);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        $xpath = new DOMXPath($doc);
-        $selector = AiHreflang::getInstance()->getSettings()->contentSelector;
-        $root = $selector !== '' ? $xpath->query((new CssSelectorConverter())->toXPath($selector))->item(0) : null;
-        $skipped = array_map(fn($name) => ".//$name", self::SKIPPED_ELEMENTS);
-
-        if ($root === null) {
-            $root = $xpath->query('//body')->item(0);
-            $skipped = [...$skipped, './header', './footer'];
-        }
-
-        if ($root === null) {
-            return '';
-        }
-
-        foreach (iterator_to_array($xpath->query(implode('|', $skipped), $root)) as $node) {
-            $node->parentNode?->removeChild($node);
-        }
-
-        $parts = [];
-        foreach ($xpath->query('.//text()', $root) as $node) {
-            $parts[] = $node->nodeValue;
-        }
-
-        return implode(' ', $parts);
+            ->andWhere(['elements.fieldLayoutId' => array_keys($this->getElementTypes()[$elementType] ?? []) ?: [0]]);
     }
 }

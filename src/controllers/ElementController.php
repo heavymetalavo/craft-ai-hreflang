@@ -4,7 +4,6 @@ namespace heavymetalavo\aihreflang\controllers;
 
 use Craft;
 use craft\web\Controller;
-use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
 use heavymetalavo\aihreflang\AiHreflang;
 use heavymetalavo\aihreflang\services\Detector;
 use Throwable;
@@ -20,7 +19,9 @@ use yii\web\Response;
 class ElementController extends Controller
 {
     /**
-     * Detects the language of a page on one site now, even if its text hasn't changed.
+     * Detects the language of a page on one site now, even if its text hasn't changed. It's the published page that's
+     * read, as drafts have no public URL. This runs in the request, which fetches the page from the site itself, so
+     * the web server must be able to serve another request meanwhile (PHP's built-in server can't).
      *
      * Posted params:
      * - `elementId`: the page's element, or a draft of it, whose canonical element is detected
@@ -55,30 +56,36 @@ class ElementController extends Controller
             return $this->asFailure($e->getMessage());
         }
 
-        if ($result === Detector::RESULT_CHOSEN) {
-            return $this->asFailure(Craft::t('ai-hreflang', 'The language was chosen by an editor, so it isn’t detected.'));
-        }
-
-        if ($result === Detector::RESULT_TOO_SHORT) {
-            return $this->asFailure(Craft::t('ai-hreflang', 'The page has fewer than {count, number} words, so it keeps its site’s hreflang.', [
+        // Outcomes other than a detection aren't errors, so they're notices too, without reloading the page
+        $message = match ($result) {
+            Detector::RESULT_CHOSEN => Craft::t('ai-hreflang', 'The language was chosen by an editor, so it isn’t detected.'),
+            Detector::RESULT_TOO_SHORT => Craft::t('ai-hreflang', 'The published page has fewer than {count, number} words, so it keeps its site’s hreflang.', [
                 'count' => Detector::MINIMUM_WORDS,
-            ]));
+            ]),
+            Detector::RESULT_NO_PAGE => Craft::t('ai-hreflang', 'The page isn’t live, so it can’t be fetched to detect its language.'),
+            Detector::RESULT_UNDETERMINED => Craft::t('ai-hreflang', 'The language of the published page couldn’t be told, so it keeps its site’s hreflang.'),
+            default => null,
+        };
+
+        if ($message !== null) {
+            return $this->asSuccess($message, ['detected' => false]);
         }
 
-        if ($result === Detector::RESULT_NO_PAGE) {
-            return $this->asFailure(Craft::t('ai-hreflang', 'The page isn’t live, so it can’t be fetched to detect its language.'));
+        $value = $plugin->detector->getValue($element);
+        $alternate = $plugin->hreflang->getAlternates($element)[$element->siteId] ?? null;
+
+        if ($alternate !== null && $alternate['clash'] !== null) {
+            return $this->asSuccess(Craft::t('ai-hreflang', 'Detected {language} on the published page. Its hreflang would be {clash}, but {sites} already uses it, so it keeps {hreflang}.', [
+                'language' => $value?->getLanguageName(),
+                'clash' => $alternate['clash'],
+                'sites' => implode(', ', $alternate['clashSites']),
+                'hreflang' => $alternate['hreflang'],
+            ]), ['detected' => true]);
         }
 
-        if ($result === Detector::RESULT_UNDETERMINED) {
-            return $this->asFailure(Craft::t('ai-hreflang', 'The language couldn’t be told, so the page keeps its site’s hreflang.'));
-        }
-
-        /** @var ContentLanguageData $value */
-        $value = $element->getFieldValue(AiHreflang::FIELD_HANDLE);
-
-        return $this->asSuccess(Craft::t('ai-hreflang', 'Detected {language}, so the hreflang is {hreflang}.', [
-            'language' => $value->getLanguageName(),
-            'hreflang' => $plugin->hreflang->getHreflang($element->getSite(), $value->language),
-        ]));
+        return $this->asSuccess(Craft::t('ai-hreflang', 'Detected {language} on the published page, so its hreflang is {hreflang}.', [
+            'language' => $value?->getLanguageName(),
+            'hreflang' => $alternate['hreflang'] ?? $plugin->hreflang->getHreflang($element->getSite(), $value?->language),
+        ]), ['detected' => true]);
     }
 }

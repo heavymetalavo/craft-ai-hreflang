@@ -17,3 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - hreflang values in SEOmatic's alternate links built from each site's Content Language, in the sites' language format, e.g. `en-FR`, or as the language alone with the hreflang Format setting
 - A searchable list of every language in the Content Language field, with the sites' languages first
 - Utility with per-site coverage, the hreflang values in use, bulk detection, and a paginated list of pages in another language
+- A page whose hreflang would be the same as another site's copy of it, such as an untranslated `es-US` page next to the `en-US` site's, keeps its site's own hreflang, and the clash is shown in the field, the utility and the Detect content language notice
+- `craft.aiHreflang.alternates(element)`, for templates that output the hreflang tags without SEOmatic
+- The Content Language field is found by its type, so its handle can be changed or overridden in a field layout
+- Uninstalling the plugin deletes the Content Language field it created
+- A warning on API keys saved in plain text in the project config, and a "Don't send" reasoning effort
