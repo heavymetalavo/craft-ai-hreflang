@@ -31,9 +31,7 @@
   },
   "require-dev": {
     "craftcms/ecs": "dev-main",
-    "craftcms/phpstan": "dev-main",
     "nystudio107/craft-seomatic": "^5.0",
-    "phpstan/phpstan": "^1.12 || ^2.0",
     "putyourlightson/craft-blitz": "^5.0"
   },
   "suggest": {
@@ -54,8 +52,7 @@
   },
   "scripts": {
     "check-cs": "ecs check --ansi",
-    "fix-cs": "ecs check --ansi --fix",
-    "phpstan": "phpstan --memory-limit=1G"
+    "fix-cs": "ecs check --ansi --fix"
   },
   "config": {
     "sort-packages": true,
