@@ -146,7 +146,7 @@
 
 {% macro notes(row) %}
     {% if row.undetermined %}
-        <div class="light smalltext">{{ '{count, plural, =1{One page} other{# pages}} couldn’t be told or {count, plural, =1{was} other{were}} too short, so {count, plural, =1{it keeps} other{they keep}} the site’s hreflang.'|t('ai-hreflang', { count: row.undetermined }) }}</div>
+        <div class="light smalltext">{{ '{count, plural, =1{One page} other{# pages}} couldn’t be detected, so {count, plural, =1{it keeps} other{they keep}} the site’s hreflang.'|t('ai-hreflang', { count: row.undetermined }) }}</div>
     {% endif %}
     {% if row.chosen %}
         <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang', { count: row.chosen }) }}</div>

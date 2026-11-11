@@ -63,7 +63,7 @@ class ElementController extends Controller
                 'count' => Detector::MINIMUM_WORDS,
             ]),
             Detector::RESULT_NO_PAGE => Craft::t('ai-hreflang', 'The page isn’t live, so it can’t be fetched to detect its language.'),
-            Detector::RESULT_UNDETERMINED => Craft::t('ai-hreflang', 'The language of the published page couldn’t be told, so it keeps its site’s hreflang.'),
+            Detector::RESULT_UNDETERMINED => Craft::t('ai-hreflang', 'The language of the published page couldn’t be detected, so it keeps its site’s hreflang.'),
             default => null,
         };
 

@@ -18,7 +18,7 @@
     {% elseif value.detectedAt and value.language %}
         {{ 'Detected as {language} {date}. Choosing another language overrides it.'|t('ai-hreflang', { language: value.languageName, date: value.detectedAt|datetime('short') }) }}
     {% elseif value.detectedAt %}
-        {{ 'The language couldn’t be told, or the page was too short, {date}, so the site’s own hreflang is used.'|t('ai-hreflang', { date: value.detectedAt|datetime('short') }) }}
+        {{ 'The language couldn’t be detected {date}, so the site’s own hreflang is used.'|t('ai-hreflang', { date: value.detectedAt|datetime('short') }) }}
     {% else %}
         {{ 'Not detected yet, so the site’s own hreflang is used. It is detected after the page is saved, if it has at least {count, number} words.'|t('ai-hreflang', { count: minimumWords }) }}
     {% endif %}
