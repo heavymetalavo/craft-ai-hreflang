@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Content Language field, created on install, holding the language each site's copy of a page is written in
-- Language detection with AI when a page is saved, skipped when the text hasn't changed, queued after Blitz's jobs with the Queue Priority setting
+- Language detection with AI when a page is saved, if the Detect when a page is saved setting is on (off by default), skipped when the text hasn't changed, queued after Blitz's jobs with the Queue Priority setting
 - Text read from the live page's `<main>` element, or the element the Content Selector setting matches, so only the text visitors see is sent
 - AI providers: Anthropic, OpenAI, Langdock and OpenRouter, as in the AI Alt Text plugin
 - Support for any element type with pages, such as entries, categories and Commerce products
@@ -24,3 +24,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A warning on API keys saved in plain text in the project config, and a "Don't send" reasoning effort
 - Utility buttons Detect missing, Re-detect keep chosen, and Re-detect all, which also replaces languages editors chose after a confirmation
 - Saving a page where only its Content Language changed doesn't detect anything
+- Saving a detection doesn't make Craft queue jobs to update the slugs and URIs of a structure page's descendants, which other plugins, such as search indexers, would queue a job for each of

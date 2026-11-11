@@ -187,7 +187,7 @@ class AiHreflang extends Plugin
             'uid' => self::FIELD_UID,
             'name' => 'Content Language',
             'handle' => self::FIELD_HANDLE,
-            'instructions' => 'The language this page is written in, which sets its hreflang. It is detected when the page is saved.',
+            'instructions' => 'The language this page is written in, which sets its hreflang. It is detected from the AI Hreflang utility, and when the page is saved if that is turned on in the plugin’s settings.',
             'searchable' => false,
             'translationMethod' => Field::TRANSLATION_METHOD_SITE,
         ]);

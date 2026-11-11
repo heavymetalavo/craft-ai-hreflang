@@ -166,7 +166,7 @@ class Settings extends Model
      *
      * @var bool
      */
-    public bool $detectOnSave = true;
+    public bool $detectOnSave = false;
 
     /**
      * How many characters of a page's text are sent to the AI provider. Language detection needs little text, so

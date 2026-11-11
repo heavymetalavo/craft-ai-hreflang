@@ -22,8 +22,8 @@ language it's actually in. Translated pages keep their site's hreflang, and nobo
 
 ## ✨ What you get
 
-- **Untranslated pages caught automatically.** A page is detected after it's saved, on each site the save changed,
-  once caches such as Blitz's are cleared. As soon as it's translated, the next save puts its hreflang back.
+- **Untranslated pages caught automatically.** With **Detect when a page is saved** turned on, a page is detected after
+  it's saved, on each site the save changed, once caches such as Blitz's are cleared. As soon as it's translated, the next save puts its hreflang back.
 - **Reach new audiences before everything's translated.** Copy content across your sites, with Craft's propagation or
   a plugin such as Site Copy X, and go live. Each page's hreflang stays truthful while translation catches up.
 - **English on purpose, labelled honestly.** In the Netherlands, 93% of people can hold a conversation in English; in
@@ -67,8 +67,8 @@ composer require heavymetalavo/craft-ai-hreflang
 1. Choose a provider and add its API key under **Settings → AI Hreflang**.
 2. Add the **Content Language** field, created when the plugin is installed, to the field layouts of your entry types
    and category groups with public pages.
-3. Detect your existing pages from **Utilities → AI Hreflang → Detect missing**. New and changed pages are
-   detected when they're saved.
+3. Detect your existing pages from **Utilities → AI Hreflang → Detect missing**. To detect new and changed pages when
+   they're saved too, turn on **Detect when a page is saved** in the plugin's settings.
 4. Output the hreflang tags in your layout's `<head>`, unless you use SEOmatic (see below):
 
    ```twig

@@ -14,7 +14,7 @@ After installation, configure the plugin at **Settings → Plugins → AI Hrefla
 | Langdock Model Author | Anthropic or OpenAI, which picks the Langdock API requests go to |
 | Reasoning Effort | OpenAI, Langdock (OpenAI models) and OpenRouter only. Only sent to OpenAI reasoning models (`low` by default). **Don't send** sends none to any model |
 | Prompt | The instructions sent with each page's text, see [The prompt](#-the-prompt) |
-| Detect when a page is saved | On by default |
+| Detect when a page is saved | Off by default. Turn it on to detect new and changed pages when they're saved |
 | Maximum Characters | How much of a page's text is sent (2,000 by default) |
 | Queue Priority | The priority of the plugin's queue jobs (2048 by default), higher than the jobs that clear page caches, see [Page caches](getting-started.md#-page-caches) |
 | Content Selector | The CSS selector of the element whose text is read, `main` by default, see [The page's content](#-the-pages-content) |

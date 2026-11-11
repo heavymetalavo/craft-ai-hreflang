@@ -15,6 +15,7 @@ use craft\enums\MenuItemType;
 use craft\events\DefineMenuItemsEvent;
 use craft\helpers\Db;
 use craft\helpers\Queue as QueueHelper;
+use craft\queue\jobs\UpdateElementSlugsAndUris;
 use DateTime;
 use heavymetalavo\aihreflang\AiHreflang;
 use heavymetalavo\aihreflang\fields\ContentLanguage;
@@ -23,6 +24,9 @@ use heavymetalavo\aihreflang\jobs\DetectElementLanguage;
 use heavymetalavo\aihreflang\jobs\DetectSiteUris;
 use putyourlightson\blitz\Blitz;
 use Throwable;
+use yii\base\Event;
+use yii\queue\PushEvent;
+use yii\queue\Queue;
 
 /**
  * Detects the language of pages' text and saves it to their Content Language field.
@@ -456,7 +460,7 @@ JS, [
 
         $language = $plugin->ai->detectLanguage($text);
 
-        Craft::info(sprintf('Detected "%s" for %s %d on site %d.', $language ?? 'und', $element::lowerDisplayName(), $element->id, $element->siteId), __METHOD__);
+        Craft::info(sprintf('Detected "%s" for %s %d on site %d, with %s %s.', $language ?? 'und', $element::lowerDisplayName(), $element->id, $element->siteId, $plugin->ai->getProviderLabel(), $plugin->ai->getModel()), __METHOD__);
 
         // An undetermined language is saved too, with the hash, so the same text isn't sent again
         $this->save($element, new ContentLanguageData([
@@ -483,7 +487,29 @@ JS, [
         // clear their caches, as the page's hreflang has changed.
         $element->resaving = true;
 
-        if (!Craft::$app->getElements()->saveElement($element, false, false, false)) {
+        // Saving an element in a structure makes Craft queue a job that updates the slugs and URIs of its descendants, on
+        // every site, and each one that is updated is announced to other plugins, such as a search indexer queueing
+        // each page. This save changes no slug or URI, so for a page with many descendants that is a lot of jobs for
+        // nothing, and it's skipped.
+        $skipDescendantJobs = function(PushEvent $event) use ($element) {
+            if (
+                $event->job instanceof UpdateElementSlugsAndUris
+                && $event->job->elementType === $element::class
+                && $event->job->siteId === $element->siteId
+            ) {
+                $event->handled = true;
+            }
+        };
+
+        Event::on(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipDescendantJobs);
+
+        try {
+            $saved = Craft::$app->getElements()->saveElement($element, false, false, false);
+        } finally {
+            Event::off(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipDescendantJobs);
+        }
+
+        if (!$saved) {
             throw new \Exception(sprintf('%s %d couldn’t be saved on site %d.', $element::displayName(), $element->id, $element->siteId));
         }
 

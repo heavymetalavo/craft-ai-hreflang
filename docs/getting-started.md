@@ -10,7 +10,7 @@ How to install AI Hreflang, set it up and detect your first pages. For the overv
 [Install the plugin](#-installation), then add the **Content Language** field it creates to the field layouts of
 your entry types (and category groups) with public pages. In **Settings → AI Hreflang**, review the settings and add
 your AI provider, API key and model. Open **Utilities → AI Hreflang** and click **Detect missing** to detect your
-existing pages; new and changed pages are detected when they're saved. Finally,
+existing pages. To detect new and changed pages when they're saved too, turn on **Detect when a page is saved**. Finally,
 [update your templates](../README.md#-quick-start) to output the new hreflang values, unless SEOmatic outputs them
 for you.
 

@@ -6,7 +6,7 @@ How pages are read and detected, and how their hreflang values are written.
 
 ## 🔄 From save to hreflang
 
-1. After a page's element is saved, a queue job for each site the save could have changed runs once caches such as
+1. With **Detect when a page is saved** on, after a page's element is saved, a queue job for each site the save could have changed runs once caches such as
    Blitz's have been cleared (see [Page caches](getting-started.md#-page-caches)), fetches its live page there and reads the text of the element the **Content Selector** setting matches, `main` by
    default (or of its `<body>`, without its header and footer, if nothing matches), leaving out navigation, scripts
    and styles. Pages that aren't live, and pages on disabled sites, have no public page to fetch, so they aren't
