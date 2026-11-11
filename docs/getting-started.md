@@ -93,7 +93,8 @@ Pages saved before the plugin was installed haven't been detected yet. Open **Ut
 shows each site's coverage (detected pages out of all its live pages with the field and a URL) and the hreflang values
 its pages use, with buttons to detect them for one site or all sites:
 
-- **Detect missing** sends only pages that haven't been detected or whose text has changed.
+- **Detect missing** sends only pages that haven't been detected, and leaves the rest alone. It doesn't go back to
+  pages whose text has changed.
 - **Re-detect, keep chosen** sends every page again, except pages whose language an editor chose.
 - **Re-detect all** sends every page, and replaces the languages editors chose, putting those pages back to automatic.
   It asks first, saying how many chosen pages it will change. Pages that can't be fetched, such as disabled ones, keep

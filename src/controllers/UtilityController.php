@@ -33,7 +33,8 @@ class UtilityController extends Controller
      *
      * Posted params:
      * - `siteId`: the site, or blank for all sites
-     * - `force`: whether to detect pages whose text hasn't changed since they were last detected
+     * - `force`: whether to go through every page, including those already detected, rather than only the pages that
+     *   haven't been detected
      * - `includeChosen`: whether to replace languages editors chose too (implies `force`)
      */
     public function actionDetect(): ?Response

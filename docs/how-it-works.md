@@ -90,4 +90,4 @@ so text on a page, such as a visitor's comment, can't easily choose the page's l
 - The `<html lang>` attribute isn't changed.
 - Without Blitz, a page's text can change without its element being saved, such as when a global or related entry it
   shows changes, or a scheduled entry goes live. Those pages are detected the next time they're saved, or with
-  **Detect missing** in the utility. With Blitz, they're detected when Blitz refreshes them.
+  **Re-detect, keep chosen** in the utility. With Blitz, they're detected when Blitz refreshes them.

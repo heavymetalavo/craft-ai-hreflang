@@ -42,8 +42,8 @@ fails.
 The page's text is sent between `<page_text>` tags. The default prompt tells the model to ignore instructions inside
 them. Keep that in a prompt of your own.
 
-Changing the provider, model or prompt makes every page count as changed, so the next save or **Detect missing**
-sends it again.
+Changing the provider, model or prompt makes every page count as changed, so the next save sends it again.
+**Detect missing** leaves pages that have been detected alone, so use **Re-detect, keep chosen** to send them all.
 
 ## 📄 The page's content
 

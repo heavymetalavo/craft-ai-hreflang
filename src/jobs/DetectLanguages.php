@@ -9,8 +9,8 @@ use craft\db\QueryBatcher;
 use heavymetalavo\aihreflang\AiHreflang;
 
 /**
- * Detects the language of every page of one element type on a site, for pages saved before the plugin was installed,
- * or from the utility.
+ * Detects the language of the pages of one element type on a site, for pages saved before the plugin was installed,
+ * or from the utility. Only the pages that haven't been detected, unless `force` is set, which goes through every page.
  *
  * @package heavymetalavo\aihreflang\jobs
  */
@@ -28,8 +28,10 @@ class DetectLanguages extends BaseDetectJob
      */
     protected function loadData(): Batchable
     {
+        // Without `force` this is "Detect missing", which leaves pages that have been detected alone, so they aren't
+        // fetched or counted in the job's progress.
         $query = AiHreflang::getInstance()->detector
-            ->pagesQuery($this->elementType, $this->siteId)
+            ->pagesQuery($this->elementType, $this->siteId, !$this->force)
             ->orderBy(['elements.id' => SORT_ASC]);
 
         return new QueryBatcher($query);

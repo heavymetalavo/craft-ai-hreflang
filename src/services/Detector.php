@@ -13,9 +13,11 @@ use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\enums\MenuItemType;
 use craft\events\DefineMenuItemsEvent;
+use craft\events\ElementEvent;
 use craft\helpers\Db;
 use craft\helpers\Queue as QueueHelper;
 use craft\queue\jobs\UpdateElementSlugsAndUris;
+use craft\services\Elements;
 use DateTime;
 use heavymetalavo\aihreflang\AiHreflang;
 use heavymetalavo\aihreflang\fields\ContentLanguage;
@@ -25,6 +27,7 @@ use heavymetalavo\aihreflang\jobs\DetectSiteUris;
 use putyourlightson\blitz\Blitz;
 use Throwable;
 use yii\base\Event;
+use yii\db\Expression;
 use yii\queue\PushEvent;
 use yii\queue\Queue;
 
@@ -491,22 +494,50 @@ JS, [
         // every site, and each one that is updated is announced to other plugins, such as a search indexer queueing
         // each page. This save changes no slug or URI, so for a page with many descendants that is a lot of jobs for
         // nothing, and it's skipped.
-        $skipDescendantJobs = function(PushEvent $event) use ($element) {
+        //
+        // A resave also counts every field as changed, so fields holding nested elements, such as Matrix, Neo and
+        // Content Block, save all of them again, and each one's save is announced too. Plugins that queue a job for each
+        // save, such as Scout queueing the page's index job once for each of its blocks, would queue a dozen jobs for
+        // a page whose blocks haven't changed. Jobs queued while a nested element is saving are skipped, and the page's
+        // own save still queues its jobs.
+        $nestedSaving = 0;
+
+        $nestedSaveStarted = function(ElementEvent $event) use ($element, &$nestedSaving) {
+            if ($event->element !== $element) {
+                $nestedSaving++;
+            }
+        };
+
+        // Plugins listening before this one queue their jobs first, so the count drops only after they have
+        $nestedSaveEnded = function(ElementEvent $event) use ($element, &$nestedSaving) {
+            if ($event->element !== $element) {
+                $nestedSaving = max(0, $nestedSaving - 1);
+            }
+        };
+
+        $skipJobs = function(PushEvent $event) use ($element, &$nestedSaving) {
             if (
-                $event->job instanceof UpdateElementSlugsAndUris
-                && $event->job->elementType === $element::class
-                && $event->job->siteId === $element->siteId
+                $nestedSaving > 0
+                || (
+                    $event->job instanceof UpdateElementSlugsAndUris
+                    && $event->job->elementType === $element::class
+                    && $event->job->siteId === $element->siteId
+                )
             ) {
                 $event->handled = true;
             }
         };
 
-        Event::on(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipDescendantJobs);
+        Event::on(Elements::class, Elements::EVENT_BEFORE_SAVE_ELEMENT, $nestedSaveStarted);
+        Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, $nestedSaveEnded);
+        Event::on(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipJobs);
 
         try {
             $saved = Craft::$app->getElements()->saveElement($element, false, false, false);
         } finally {
-            Event::off(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipDescendantJobs);
+            Event::off(Elements::class, Elements::EVENT_BEFORE_SAVE_ELEMENT, $nestedSaveStarted);
+            Event::off(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, $nestedSaveEnded);
+            Event::off(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipJobs);
         }
 
         if (!$saved) {
@@ -602,16 +633,43 @@ JS, [
      * a section without URLs, aren't pages, so they're left out.
      *
      * @param class-string<ElementInterface> $elementType
+     * @param bool $undetectedOnly Only pages that haven't been detected: with neither a language nor a hash, as Report
+     * counts them. Pages an editor chose a language for, and pages detected without a language, have one or the other.
      */
-    public function pagesQuery(string $elementType, int $siteId): ElementQuery
+    public function pagesQuery(string $elementType, int $siteId, bool $undetectedOnly = false): ElementQuery
     {
         /** @var ElementQuery $query */
         $query = $elementType::find();
+        $fields = $this->getElementTypes()[$elementType] ?? [];
 
-        return $query
+        $query
             ->siteId($siteId)
             ->uri(':notempty:')
             ->status($this->getLiveStatus($elementType))
-            ->andWhere(['elements.fieldLayoutId' => array_keys($this->getElementTypes()[$elementType] ?? []) ?: [0]]);
+            ->andWhere(['elements.fieldLayoutId' => array_keys($fields) ?: [0]]);
+
+        if ($undetectedOnly && $fields) {
+            $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
+            $conditions = ['or'];
+
+            // The field's value is saved in the `content` column under its layout element's UID. Nothing is saved for a
+            // page that hasn't been detected, so its path is missing, and where the database returns a JSON null as
+            // text, 'null'.
+            foreach ($fields as $layoutId => $field) {
+                $uid = $field->layoutElement->uid;
+                $language = $queryBuilder->jsonExtract('elements_sites.content', [$uid, 'language']);
+                $hash = $queryBuilder->jsonExtract('elements_sites.content', [$uid, 'hash']);
+
+                $conditions[] = [
+                    'and',
+                    ['elements.fieldLayoutId' => $layoutId],
+                    new Expression("NULLIF($language, 'null') IS NULL AND NULLIF($hash, 'null') IS NULL"),
+                ];
+            }
+
+            $query->andWhere($conditions);
+        }
+
+        return $query;
     }
 }

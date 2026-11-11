@@ -72,7 +72,7 @@
     {% set actions = [
         {
             label: 'Detect missing'|t('ai-hreflang'),
-            title: 'Detects pages that haven’t been, and pages whose text has changed since.'|t('ai-hreflang'),
+            title: 'Detects pages that haven’t been, and leaves the rest alone.'|t('ai-hreflang'),
             params: {},
             class: 'submit',
         },
@@ -160,7 +160,7 @@
 <h2>{{ 'Coverage'|t('ai-hreflang') }}</h2>
 
 <p class="light">
-    {{ '**Detect missing** detects pages that haven’t been, and pages whose text has changed since. **Re-detect, keep chosen** sends every page again, except pages whose language an editor chose. **Re-detect all** sends every page, and replaces the languages editors chose, putting those pages back to automatic. Pages are detected in the queue.'|t('ai-hreflang')|md(inlineOnly=true) }}
+    {{ '**Detect missing** detects pages that haven’t been, and leaves the rest alone. **Re-detect, keep chosen** sends every page again, except pages whose language an editor chose. **Re-detect all** sends every page, and replaces the languages editors chose, putting those pages back to automatic. Pages are detected in the queue.'|t('ai-hreflang')|md(inlineOnly=true) }}
 </p>
 
 {% set totals = {
