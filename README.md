@@ -69,8 +69,7 @@ composer require heavymetalavo/craft-ai-hreflang
    and category groups with public pages.
 3. Detect your existing pages from **Utilities → AI Hreflang → Detect missing**. New and changed pages are
    detected when they're saved.
-4. Update your templates to output the new hreflang values. Normally, output the alternate links in your layout's
-   `<head>` from `craft.aiHreflang.alternates()`:
+4. Output the hreflang tags in your layout's `<head>`, unless you use SEOmatic (see below):
 
    ```twig
    {% set alternates = craft.aiHreflang.alternates(entry) %}
@@ -83,29 +82,16 @@ composer require heavymetalavo/craft-ai-hreflang
    {% endfor %}
    ```
 
-   With SEOmatic, its hreflang tags are rewritten for you, so there's nothing to add. To overwrite SEOmatic's
-   alternate links in your template instead, before its tags are output:
+   `craft.aiHreflang.alternates()` gives the page's live copy on each site, with its URL and hreflang: the page's
+   language with its site's region, such as `en-FR`, or the site's own hreflang when it hasn't been detected, is in
+   the site's language, or would clash with another copy. It works for entries, categories and any other element with
+   pages.
 
-   ```twig
-   {% set alternates = craft.aiHreflang.alternates(entry) %}
-   {% set link = seomatic.link.get('alternate') %}
-   {% if link and alternates %}
-     {% set primary = alternates|filter(a => a.site.primary)|first %}
-     {% do link
-       .hreflang(alternates|column('hreflang')|merge(primary ? ['x-default'] : []))
-       .href(alternates|column('url')|merge(primary ? [primary.url] : [])) %}
-   {% endif %}
-   ```
+### Using SEOmatic
 
-### The hreflang values
-
-`craft.aiHreflang.alternates()` gives a page's live copy on each site, with its absolute URL and its hreflang,
-clashes already resolved. It works for entries, categories and any other element with pages. Each alternate's
-`hreflang` is the page's language with its site's region, such as `en-FR`, or the site's own hreflang when the page
-hasn't been detected yet, is in the site's language, or would clash with another copy. Each also has `site`,
-`language` (the Content Language, or null) and `clash` (the hreflang it would have had). An editor can override any
-page by choosing its language in the Content Language field. The field's value is also available on its own:
-`entry.contentLanguage.language` is the language code, such as `en`, or null when it hasn't been detected.
+There's nothing to add to your templates. SEOmatic outputs the hreflang tags as usual, and the plugin rewrites their
+values for every site from each page's Content Language, with the same rules as `craft.aiHreflang.alternates()`.
+Skip step 4.
 
 ### Using Blitz
 
