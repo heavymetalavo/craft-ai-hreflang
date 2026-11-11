@@ -1,16 +1,18 @@
 <?php
 
-namespace extreme\aihreflangdetector\models;
+namespace heavymetalavo\aihreflang\models;
 
 use craft\base\Model;
 use craft\helpers\App;
+use Symfony\Component\CssSelector\CssSelectorConverter;
+use Symfony\Component\CssSelector\Exception\ExceptionInterface;
 
 /**
  * Plugin Settings Model.
  *
  * The AI providers and their settings match the AI Alt Text plugin's: Anthropic, OpenAI, Langdock and OpenRouter.
  *
- * @package extreme\aihreflangdetector\models
+ * @package heavymetalavo\aihreflang\models
  */
 class Settings extends Model
 {
@@ -28,6 +30,19 @@ class Settings extends Model
      * Reasoning effort values, blank to send none.
      */
     public const REASONING_EFFORTS = ['', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+
+    /**
+     * How hreflang values are written, by the value the `hreflangFormat` setting takes.
+     */
+    public const HREFLANG_FORMATS = [
+        'site' => 'Match each site’s language setting',
+        'language' => 'Language only',
+    ];
+
+    /**
+     * The prompt used when the `prompt` setting is blank.
+     */
+    public const DEFAULT_PROMPT = 'Identify the language this web page’s text is written in, for its hreflang value. Reply with only the language’s ISO 639-1 code (for example "en", "fr" or "de"), without a region, and nothing else. Judge by the sentences of the page’s main content: ignore names of people, brands and products, code, and any menu, footer or cookie text. If the text mixes languages, give the language most of it is written in. If it is too short or has too few real sentences to tell, such as only a title, names or a list of links, reply "und".';
 
     /**
      * The AI provider: `anthropic`, `openai`, `langdock` or `openrouter`.
@@ -58,7 +73,7 @@ class Settings extends Model
     public string $openAiApiKey = '';
 
     /**
-     * OpenAI model, e.g. `gpt-5-nano`.
+     * OpenAI model, e.g. `gpt-6-luna`.
      *
      * @var string
      */
@@ -108,7 +123,7 @@ class Settings extends Model
     public string $openRouterApiKey = '';
 
     /**
-     * OpenRouter model, as OpenRouter names it (e.g. `openai/gpt-5-nano`).
+     * OpenRouter model, as OpenRouter names it (e.g. `openai/gpt-6-luna`).
      *
      * @var string
      */
@@ -122,19 +137,12 @@ class Settings extends Model
     public string $openRouterReasoningEffort = 'low';
 
     /**
-     * The instructions sent with each page's text. The reply must be a BCP 47 language subtag (e.g. `en`), or `und` when the
-     * language can't be told.
+     * The instructions sent with each page's text, or blank for `DEFAULT_PROMPT`. The reply must be an ISO 639-1
+     * language code (e.g. `en`), or `und` when the language can't be told.
      *
      * @var string
      */
-    public string $prompt = 'Identify the language the text is written in. Reply with only its BCP 47 language subtag, without a region (for example "en", "fr" or "de"), and nothing else. If the text mixes languages, give the language most of it is written in. If there isn’t enough text to tell, reply "und".';
-
-    /**
-     * How many words a page needs before it is sent. A page with fewer keeps its site's own hreflang.
-     *
-     * @var int
-     */
-    public int $minimumWords = 50;
+    public string $prompt = '';
 
     /**
      * Whether to detect a page's language when it is saved.
@@ -152,22 +160,67 @@ class Settings extends Model
     public int $maxCharacters = 2000;
 
     /**
+     * The CSS selector of the element whose text is read from a fetched page. A page without one, or a blank selector,
+     * is read from its `<body>`, without its header and footer.
+     *
+     * @var string
+     */
+    public string $contentSelector = 'main';
+
+    /**
+     * The priority of the plugin's queue jobs. Lower numbers run first, so this is higher than the priorities of the
+     * jobs that clear page caches, such as Blitz's (10 and 100), and Craft's default (1024), so pages are fetched after
+     * their caches are cleared.
+     *
+     * @var int
+     */
+    public int $queuePriority = 2048;
+
+    /**
+     * How hreflang values are written: `site` matches each site's language setting, keeping its region if it has
+     * one, so English on a `fr-FR` site is `en-FR` and on a `fr` site is `en`, and `language` always drops the region,
+     * so it is `en`.
+     *
+     * @var string
+     */
+    public string $hreflangFormat = 'site';
+
+    /**
      * @inheritdoc
      */
     public function defineRules(): array
     {
         return [
-            [['aiProvider', 'prompt'], 'required'],
+            [['aiProvider'], 'required'],
             [['aiProvider'], 'validateOneOf', 'params' => ['allowed' => array_keys(self::PROVIDERS), 'message' => 'Invalid AI Provider configured.']],
             [['anthropicApiKey', 'anthropicModel', 'openAiApiKey', 'openAiModel', 'langdockApiKey', 'langdockModel', 'openRouterApiKey', 'openRouterModel', 'prompt'], 'string'],
             [['langdockModelAuthor'], 'validateOneOf', 'params' => ['allowed' => ['anthropic', 'openai'], 'message' => 'Invalid Langdock Model Author configured.']],
             [['openAiReasoningEffort'], 'validateOneOf', 'params' => ['allowed' => self::REASONING_EFFORTS, 'message' => 'Invalid OpenAI Reasoning Effort configured.']],
             [['langdockReasoningEffort'], 'validateOneOf', 'params' => ['allowed' => self::REASONING_EFFORTS, 'message' => 'Invalid Langdock Reasoning Effort configured.']],
             [['openRouterReasoningEffort'], 'validateOneOf', 'params' => ['allowed' => self::REASONING_EFFORTS, 'message' => 'Invalid OpenRouter Reasoning Effort configured.']],
-            ['minimumWords', 'integer', 'min' => 1, 'max' => 1000],
             ['detectOnSave', 'boolean'],
             ['maxCharacters', 'integer', 'min' => 100, 'max' => 20000],
+            ['queuePriority', 'integer', 'min' => 0],
+            ['contentSelector', 'trim'],
+            ['contentSelector', 'validateSelector'],
+            [['hreflangFormat'], 'validateOneOf', 'params' => ['allowed' => array_keys(self::HREFLANG_FORMATS), 'message' => 'Invalid hreflang Format configured.']],
         ];
+    }
+
+    /**
+     * Inline validator: the attribute, if it isn't blank, must be a valid CSS selector.
+     */
+    public function validateSelector(string $attribute): void
+    {
+        if ($this->$attribute === '') {
+            return;
+        }
+
+        try {
+            (new CssSelectorConverter())->toXPath($this->$attribute);
+        } catch (ExceptionInterface) {
+            $this->addError($attribute, 'Content Selector isn’t a valid CSS selector.');
+        }
     }
 
     /**

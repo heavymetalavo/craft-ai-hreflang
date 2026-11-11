@@ -48,7 +48,7 @@
         {%- endfor -%}
         {%- if notDetected > 0 -%}
             {%- set segments = segments|merge([{
-                label: 'Not detected'|t('ai-hreflang-detector'),
+                label: 'Not detected'|t('ai-hreflang'),
                 code: false,
                 count: notDetected,
                 color: 'repeating-linear-gradient(-45deg, var(--gray-200, #e2e8f0) 0 2px, var(--gray-050, #f8fafc) 2px 4px)',
@@ -77,12 +77,12 @@
         {% for force in [false, true] %}
             <form method="post" accept-charset="UTF-8">
                 {{ csrfInput() }}
-                {{ actionInput('ai-hreflang-detector/utility/detect') }}
-                {{ redirectInput('utilities/ai-hreflang-detector') }}
+                {{ actionInput('ai-hreflang/utility/detect') }}
+                {{ redirectInput('utilities/ai-hreflang') }}
                 {{ siteId ? hiddenInput('siteId', siteId) }}
                 {{ force ? hiddenInput('force', 1) }}
                 <button type="submit" class="btn small submit" {% if disabled %}disabled{% endif %}>
-                    {{ force ? 'Re-detect all'|t('ai-hreflang-detector') : 'Detect missing'|t('ai-hreflang-detector') }}
+                    {{ force ? 'Re-detect all'|t('ai-hreflang') : 'Detect missing'|t('ai-hreflang') }}
                 </button>
             </form>
         {% endfor %}
@@ -91,7 +91,7 @@
 
 {% if currentUser.admin %}
     <div class="flex flex-nowrap" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
-        <a href="{{ cpUrl('settings/plugins/ai-hreflang-detector') }}" class="btn" data-icon="settings">{{ 'Plugin Settings'|t('ai-hreflang-detector') }}</a>
+        <a href="{{ cpUrl('settings/plugins/ai-hreflang') }}" class="btn" data-icon="settings">{{ 'Plugin Settings'|t('ai-hreflang') }}</a>
     </div>
 {% endif %}
 
@@ -101,40 +101,42 @@
 
 {% if not hasField %}
     <p class="warning with-icon">
-        {{ 'The Content Language field isn’t in any entry type’s field layout, so no pages are detected.'|t('ai-hreflang-detector') }}
+        {{ 'The Content Language field isn’t in the field layout of any entries, categories or other elements with pages, so no pages are detected.'|t('ai-hreflang') }}
     </p>
 {% endif %}
 
 <div class="readable" style="margin-bottom: 24px;">
     <p>
-        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}
+        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`.'|t('ai-hreflang')|md(inlineOnly=true) }}
     </p>
     {% if not configurationError %}
         <p class="light">
-            {{ 'Languages are detected with the {provider} model {model}.'|t('ai-hreflang-detector', { provider: provider, model: '`' ~ model ~ '`' })|md(inlineOnly=true) }}
+            {{ 'Languages are detected with the {provider} model {model}.'|t('ai-hreflang', { provider: provider, model: '`' ~ model ~ '`' })|md(inlineOnly=true) }}
         </p>
     {% endif %}
 </div>
 
 <details id="how-pages-are-detected" style="margin-bottom: 24px;">
-    <summary style="cursor: pointer;"><strong>{{ 'How a page’s language is detected'|t('ai-hreflang-detector') }}</strong></summary>
+    <summary style="cursor: pointer;"><strong>{{ 'How a page’s language is detected'|t('ai-hreflang') }}</strong></summary>
     <div class="readable" style="margin-top: 8px;">
         <ul class="bullets">
-            <li>{{ 'When a page is saved, a queue job reads its text on each site it’s on, and sends it to the AI provider, which replies with the language it is written in.'|t('ai-hreflang-detector') }}</li>
-            <li>{{ '**Read:** the title, plain text fields, rich text (CKEditor) fields without the entries embedded in them, table fields, and the same fields in nested Matrix entries, Neo blocks and content blocks, up to 5 levels deep.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}</li>
-            <li>{{ '**Not read:** related entries, categories and assets, which are other pages or files, and fields that aren’t text, such as links, dropdowns, lightswitches, dates and SEO settings.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}</li>
-            <li>{{ 'Pages with fewer than {count, number} words aren’t sent, and keep their site’s own hreflang, as there isn’t enough text to tell their language reliably.'|t('ai-hreflang-detector', { count: minimumWords }) }}</li>
-            <li>{{ 'The first {count, number} characters are sent, with the whitespace collapsed, and the [prompt]({url}) asks for the language most of the text is written in. Language detection needs little text, and less text costs less.'|t('ai-hreflang-detector', { count: maxCharacters, url: cpUrl('settings/plugins/ai-hreflang-detector') })|md(inlineOnly=true) }}</li>
-            <li>{{ 'A hash of the text is saved with the language, so a page whose text hasn’t changed isn’t sent again.'|t('ai-hreflang-detector') }}</li>
-            <li>{{ 'Pages whose language was chosen by an editor are skipped. If the AI provider can’t tell the language, the page keeps its site’s own hreflang.'|t('ai-hreflang-detector') }}</li>
+            <li>{{ 'When a page is saved, a queue job for each site the save changed runs after caches such as Blitz’s have been cleared, fetches the live page there, and sends its text to the AI provider, which replies with the language it is written in.'|t('ai-hreflang') }}</li>
+            <li>{{ (contentSelector
+                ? '**Read:** the text of the first element matching the [Content Selector]({url}), `{selector}`, or of the page’s `<body>` without its header and footer if none matches.'
+                : '**Read:** the text of the page’s `<body>`, without its header and footer, as the [Content Selector]({url}) is blank.')|t('ai-hreflang', { selector: contentSelector, url: cpUrl('settings/plugins/ai-hreflang') })|md(inlineOnly=true) }}</li>
+            <li>{{ '**Not read:** navigation, scripts, styles, SVGs and iframes, and pages that aren’t live, such as disabled, pending and expired pages, which can’t be fetched. A pending page is detected once it is live and saved again, or detected from here.'|t('ai-hreflang')|md(inlineOnly=true) }}</li>
+            <li>{{ 'Pages with fewer than {count, number} words aren’t sent, and keep their site’s own hreflang, as there isn’t enough text to tell their language reliably.'|t('ai-hreflang', { count: minimumWords }) }}</li>
+            <li>{{ 'The first {count, number} characters are sent, with the whitespace collapsed, and the [prompt]({url}) asks for the language most of the text is written in. Language detection needs little text, and less text costs less.'|t('ai-hreflang', { count: maxCharacters, url: cpUrl('settings/plugins/ai-hreflang') })|md(inlineOnly=true) }}</li>
+            <li>{{ 'A hash of the text is saved with the language, so a page whose text hasn’t changed isn’t sent again.'|t('ai-hreflang') }}</li>
+            <li>{{ 'Pages whose language was chosen by an editor are skipped. If the AI provider can’t tell the language, the page keeps its site’s own hreflang.'|t('ai-hreflang') }}</li>
         </ul>
     </div>
 </details>
 
-<h2>{{ 'Coverage'|t('ai-hreflang-detector') }}</h2>
+<h2>{{ 'Coverage'|t('ai-hreflang') }}</h2>
 
 <p class="light">
-    {{ '**Detect missing** detects pages that haven’t been, and pages whose text has changed since. **Re-detect all** sends every page again. Pages whose language was chosen by an editor are skipped. Pages are detected in the queue.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}
+    {{ '**Detect missing** detects pages that haven’t been, and pages whose text has changed since. **Re-detect all** sends every page again. Pages whose language was chosen by an editor are skipped. Pages are detected in the queue.'|t('ai-hreflang')|md(inlineOnly=true) }}
 </p>
 
 {% set totals = {
@@ -143,15 +145,15 @@
     chosen: stats|reduce((sum, row) => sum + row.chosen, 0),
 } %}
 
-<div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Content language coverage by site'|t('ai-hreflang-detector') }}">
+<div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Content language coverage by site'|t('ai-hreflang') }}">
     <table class="data fullwidth">
         <thead>
             <tr>
                 <th scope="col">{{ 'Site'|t('app') }}</th>
-                <th scope="col">{{ 'Detected'|t('ai-hreflang-detector') }}</th>
-                <th scope="col">{{ 'Coverage'|t('ai-hreflang-detector') }}</th>
-                <th scope="col">{{ 'hreflang'|t('ai-hreflang-detector') }}</th>
-                <th scope="col">{{ 'Actions'|t('ai-hreflang-detector') }}</th>
+                <th scope="col">{{ 'Detected'|t('ai-hreflang') }}</th>
+                <th scope="col">{{ 'Coverage'|t('ai-hreflang') }}</th>
+                <th scope="col">{{ 'hreflang'|t('ai-hreflang') }}</th>
+                <th scope="col">{{ 'Actions'|t('ai-hreflang') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -161,13 +163,13 @@
                 <td>{{ _self.coverageRing(totals.total ? totals.detected / totals.total * 100 : null) }}</td>
                 <td>
                     {% set ownLanguage = stats|reduce((sum, row) => sum + (row.hreflangs[row.siteHreflang] ?? 0), 0) %}
-                    {% set ownLabel = 'Site’s language'|t('ai-hreflang-detector') %}
+                    {% set ownLabel = 'Site’s language'|t('ai-hreflang') %}
                     {{ _self.hreflangBar({
                         (ownLabel): ownLanguage,
-                        ('Another language'|t('ai-hreflang-detector')): totals.detected - ownLanguage,
+                        ('Another language'|t('ai-hreflang')): totals.detected - ownLanguage,
                     }, ownLabel, totals.total - totals.detected, true) }}
                     {% if totals.chosen %}
-                        <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang-detector', { count: totals.chosen }) }}</div>
+                        <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang', { count: totals.chosen }) }}</div>
                     {% endif %}
                 </td>
                 <td>{{ _self.detectButtons(null, configurationError) }}</td>
@@ -190,17 +192,17 @@
 
 <hr>
 
-<h2>{{ 'Pages in another language'|t('ai-hreflang-detector') }}</h2>
+<h2>{{ 'Pages in another language'|t('ai-hreflang') }}</h2>
 <p class="light">
-    {{ 'Pages written in a language other than their site’s on at least one site, with the hreflang each site gives them, most recently detected first. Highlighted values differ from the site’s own, and faint ones haven’t been detected yet.'|t('ai-hreflang-detector') }}
+    {{ 'Pages written in a language other than their site’s on at least one site, with the hreflang each site gives them, most recently detected first. Highlighted values differ from the site’s own, and faint ones haven’t been detected yet.'|t('ai-hreflang') }}
 </p>
 
 {% if otherLanguagePages %}
-    <div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Pages in another language'|t('ai-hreflang-detector') }}">
+    <div style="overflow-x: auto;" tabindex="0" role="region" aria-label="{{ 'Pages in another language'|t('ai-hreflang') }}">
         <table class="data fullwidth">
             <thead>
                 <tr>
-                    <th scope="col">{{ 'Page'|t('ai-hreflang-detector') }}</th>
+                    <th scope="col">{{ 'Page'|t('ai-hreflang') }}</th>
                     {% for site in sites %}
                         <th scope="col" title="{{ site.name }}">{{ site.language }}</th>
                     {% endfor %}
@@ -209,21 +211,21 @@
             <tbody>
                 {% for row in otherLanguagePages %}
                     <tr>
-                        <th scope="row">{{ elementChip(row.entry, { hyperlink: true }) }}</th>
+                        <th scope="row">{{ elementChip(row.element, { hyperlink: true }) }}</th>
                         {% for site in sites %}
                             {% set cell = row.sites[site.id] ?? null %}
                             <td>
                                 {% if cell %}
-                                    <a href="{{ cell.entry.cpEditUrl }}" title="{{ 'Edit on {site}'|t('ai-hreflang-detector', { site: site.name }) }}">
+                                    <a href="{{ cell.element.cpEditUrl }}" title="{{ 'Edit on {site}'|t('ai-hreflang', { site: site.name }) }}">
                                         {%- if cell.other -%}
                                             <span class="status-label orange" style="text-transform: none;"><span class="status orange"></span><span class="status-label-text" style="text-transform: none;">{{ cell.hreflang }}</span></span>
                                         {%- elseif cell.detected -%}
                                             <code>{{ cell.hreflang }}</code>
                                         {%- else -%}
-                                            <code class="light" style="opacity: .5;" title="{{ 'Not detected yet, so the site’s own hreflang is used'|t('ai-hreflang-detector') }}">{{ cell.hreflang }}</code>
+                                            <code class="light" style="opacity: .5;" title="{{ 'Not detected yet, so the site’s own hreflang is used'|t('ai-hreflang') }}">{{ cell.hreflang }}</code>
                                         {%- endif -%}
                                     </a>
-                                    {% if cell.chosen %}<span class="light smalltext">{{ '(chosen)'|t('ai-hreflang-detector') }}</span>{% endif %}
+                                    {% if cell.chosen %}<span class="light smalltext">{{ '(chosen)'|t('ai-hreflang') }}</span>{% endif %}
                                 {% else %}
                                     <span class="light">—</span>
                                 {% endif %}
@@ -235,8 +237,8 @@
         </table>
     </div>
     <div style="margin-top: 12px;">
-        {% include '_includes/pagination' with { pageInfo: pageInfo, itemLabel: 'page'|t('ai-hreflang-detector'), itemsLabel: 'pages'|t('ai-hreflang-detector') } %}
+        {% include '_includes/pagination' with { pageInfo: pageInfo, itemLabel: 'page'|t('ai-hreflang'), itemsLabel: 'pages'|t('ai-hreflang') } %}
     </div>
 {% else %}
-    <p>{{ 'None yet.'|t('ai-hreflang-detector') }}</p>
+    <p>{{ 'None yet.'|t('ai-hreflang') }}</p>
 {% endif %}

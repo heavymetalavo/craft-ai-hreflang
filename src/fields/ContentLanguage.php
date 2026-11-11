@@ -1,6 +1,6 @@
 <?php
 
-namespace extreme\aihreflangdetector\fields;
+namespace heavymetalavo\aihreflang\fields;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -8,8 +8,9 @@ use craft\base\Field;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Html;
 use craft\models\Site;
-use extreme\aihreflangdetector\fields\data\ContentLanguageData;
-use extreme\aihreflangdetector\AiHreflangDetector;
+use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
+use heavymetalavo\aihreflang\AiHreflang;
+use heavymetalavo\aihreflang\services\Detector;
 use yii\db\Schema;
 
 /**
@@ -18,7 +19,7 @@ use yii\db\Schema;
  * Holds the language a page's content is written in, for each site. It is detected automatically when the page is
  * saved, unless an editor chooses the language. The page's hreflang is built from it.
  *
- * @package extreme\aihreflangdetector\fields
+ * @package heavymetalavo\aihreflang\fields
  */
 class ContentLanguage extends Field
 {
@@ -27,7 +28,7 @@ class ContentLanguage extends Field
      */
     public static function displayName(): string
     {
-        return Craft::t('ai-hreflang-detector', 'Content Language');
+        return Craft::t('ai-hreflang', 'Content Language (hreflang)');
     }
 
     /**
@@ -108,8 +109,14 @@ class ContentLanguage extends Field
             return $this->normalizeValue($value, $element);
         }
 
+        // The dropdown shows the detected language, so submitting it unchanged keeps it detected. The blank option
+        // clears it, so it's detected again, and any other language is chosen by an editor.
         if ($value['mode'] === '') {
-            return $this->normalizeValue([...$value, 'auto' => true], $element);
+            return new ContentLanguageData(['auto' => true]);
+        }
+
+        if ($value['mode'] === ($value['language'] ?? '') && !empty($value['auto'])) {
+            return $this->normalizeValue($value, $element);
         }
 
         return new ContentLanguageData([
@@ -151,16 +158,16 @@ class ContentLanguage extends Field
     {
         /** @var ContentLanguageData $value */
         $site = $element?->getSite() ?? Craft::$app->getSites()->getCurrentSite();
-        $hreflang = AiHreflangDetector::getInstance()->hreflang;
+        $hreflang = AiHreflang::getInstance()->hreflang;
 
-        return Craft::$app->getView()->renderTemplate('ai-hreflang-detector/_field/input', [
+        return Craft::$app->getView()->renderTemplate('ai-hreflang/_field/input', [
             'id' => $this->getInputId(),
             'name' => $this->handle,
             'value' => $value,
             'languageOptions' => $this->languageOptions($value, $site),
             'hreflang' => $hreflang->getHreflang($site, $value->language),
-            'hreflangLabel' => $hreflang->getLabel($site, $value->language),
-            'minimumWords' => AiHreflangDetector::getInstance()->getSettings()->minimumWords,
+            'minimumWords' => Detector::MINIMUM_WORDS,
+            'sitePublic' => AiHreflang::getInstance()->detector->isSitePublic($site),
         ]);
     }
 
@@ -176,33 +183,46 @@ class ContentLanguage extends Field
 
         $label = Html::encode($value->getLanguageName());
 
-        return $value->auto ? $label : $label . ' ' . Html::tag('span', Craft::t('ai-hreflang-detector', '(chosen)'), ['class' => 'light']);
+        return $value->auto ? $label : $label . ' ' . Html::tag('span', Craft::t('ai-hreflang', '(chosen)'), ['class' => 'light']);
     }
 
     /**
-     * The languages an editor can choose: those of the sites, plus the page's current language. Each is labelled with
-     * the language for the page's site and the hreflang it gives the page, e.g. "English (Germany) — en-DE".
+     * The languages an editor can choose: the sites' languages first, then every other language Craft knows, plus the
+     * page's current language. Each is labelled with the language for the page's site and the hreflang it gives the
+     * page, e.g. "English (Germany) — en-DE".
      *
-     * @return array<string, string> Labels, indexed by language code
+     * @return array<int, array{optgroup: string}|array{label: string, value: string}> Options for a select
      */
     private function languageOptions(ContentLanguageData $value, Site $site): array
     {
-        $hreflang = AiHreflangDetector::getInstance()->hreflang;
-        $codes = array_map(
+        $hreflang = AiHreflang::getInstance()->hreflang;
+        $siteCodes = array_unique(array_map(
             fn(Site $site) => $hreflang->getLanguageCode($site->language),
             Craft::$app->getSites()->getAllSites(),
-        );
+        ));
+
+        // Locale IDs without a region or script, such as `it`, are the languages
+        $otherCodes = array_filter(Craft::$app->getI18n()->getAllLocaleIds(), fn(string $id) => preg_match('/^[a-z]{2,3}$/', $id));
 
         if ($value->language !== null) {
-            $codes[] = $value->language;
+            $otherCodes[] = $value->language;
         }
 
-        $options = [];
-        foreach (array_unique($codes) as $code) {
-            $options[$code] = $hreflang->getLabel($site, $code);
-        }
-        asort($options);
+        $toOptions = function(array $codes) use ($hreflang, $site): array {
+            $labels = [];
+            foreach (array_unique($codes) as $code) {
+                $labels[$code] = $hreflang->getLabel($site, $code);
+            }
+            asort($labels);
 
-        return $options;
+            return array_map(fn($code, $label) => ['label' => $label, 'value' => $code], array_keys($labels), $labels);
+        };
+
+        return [
+            ['optgroup' => Craft::t('ai-hreflang', 'Site languages')],
+            ...$toOptions($siteCodes),
+            ['optgroup' => Craft::t('ai-hreflang', 'Other languages')],
+            ...$toOptions(array_diff($otherCodes, $siteCodes)),
+        ];
     }
 }

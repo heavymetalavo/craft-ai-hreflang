@@ -1,15 +1,19 @@
 {% import '_includes/forms.twig' as forms %}
 
-{# @var settings \extreme\aihreflangdetector\models\Settings #}
-<h2>{{ 'AI Provider'|t('ai-hreflang-detector') }}</h2>
-
+{# @var settings \heavymetalavo\aihreflang\models\Settings #}
 <p>
-    {{ 'Each page’s text is sent to an AI model, which replies with the language it is written in. The page’s hreflang is then that language with its site’s region, as a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag (`language-region`): a French site page still in English becomes `en-FR` instead of `fr-FR`.'|t('ai-hreflang-detector')|md(inlineOnly=true) }}
+    {{ 'Each page’s text is sent to an AI model, which replies with the language it is written in. The page’s hreflang is then that language with its site’s region, as a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag (`language-region`): a French site page still in English becomes `en-FR` instead of `fr-FR`.'|t('ai-hreflang')|md(inlineOnly=true) }}
 </p>
 
 <p>
-    <a href="{{ cpUrl('utilities/ai-hreflang-detector') }}" class="btn" data-icon="language">{{ 'Coverage and bulk detection'|t('ai-hreflang-detector') }}</a>
+    {{ 'The AI Hreflang utility shows which pages have been detected, and detects pages saved before the plugin was installed.'|t('ai-hreflang') }}
 </p>
+
+<p>
+    <a href="{{ cpUrl('utilities/ai-hreflang') }}" class="btn go">{{ 'Go to Utilities'|t('ai-hreflang') }}</a>
+</p>
+
+<h2>{{ 'AI Provider'|t('ai-hreflang') }}</h2>
 
 {% set configurationError = ai.getConfigurationError() %}
 {% if configurationError %}
@@ -24,26 +28,28 @@
     { label: 'High', value: 'high' },
     { label: 'Extra High', value: 'xhigh' },
 ] %}
-{% set reasoningEffortInstructions = 'The [reasoning effort](https://developers.openai.com/api/docs/guides/reasoning#reasoning-effort) sent to OpenAI reasoning models, such as `o*` and `gpt-5*`. Other models are sent none. Detecting a language needs little reasoning. `gpt-5` models (like `gpt-5-nano`) accept `minimal` but not `none` or `xhigh`, while newer models accept `none` and `xhigh` but not `minimal`. `low` works on both.'|t('ai-hreflang-detector') %}
+{% set reasoningEffortInstructions = 'The [reasoning effort](https://developers.openai.com/api/docs/guides/reasoning#reasoning-effort) sent to OpenAI reasoning models, such as `o*` and `gpt-5*`. Other models are sent none. Detecting a language needs little reasoning. `gpt-5` models (like `gpt-5-nano` and `gpt-5-mini`) accept `minimal` but not `none` or `xhigh`, while newer models (like `gpt-6-luna`) accept `none` and `xhigh` but not `minimal`. `low` works on both.'|t('ai-hreflang') %}
 
 {% set providerValues = ['anthropic', 'openai', 'langdock', 'openrouter'] %}
 {% set resolvedProvider = parseEnv(settings.aiProvider) %}
 {% set hiddenProviders = resolvedProvider in providerValues
     ? providerValues|filter(v => v != resolvedProvider)
-    : [] %}
+    : providerValues %}
 
 {% set langdockAuthors = ['anthropic', 'openai'] %}
 {% set resolvedLangdockAuthor = parseEnv(settings.langdockModelAuthor) %}
 {% set hiddenLangdockAuthors = resolvedLangdockAuthor in langdockAuthors
     ? langdockAuthors|filter(v => v != resolvedLangdockAuthor)
-    : [] %}
+    : langdockAuthors %}
 
 {{ forms.selectizeField({
-    label: 'AI Provider'|t('ai-hreflang-detector'),
-    instructions: 'The AI service that detects each page’s language. Only the chosen provider’s settings are shown below. If you choose an environment variable, save and reload to show its provider’s settings.'|t('ai-hreflang-detector'),
+    label: 'AI Provider'|t('ai-hreflang'),
+    instructions: 'The AI service that detects each page’s language. Only the chosen provider’s settings are shown below. If you choose an environment variable, save and reload to show its provider’s settings.'|t('ai-hreflang'),
     id: 'aiProvider',
     name: 'aiProvider',
+    required: true,
     options: [
+        { label: 'Choose a provider…'|t('ai-hreflang'), value: '' },
         { label: 'Anthropic', value: 'anthropic' },
         { label: 'OpenAI', value: 'openai' },
         { label: 'Langdock', value: 'langdock' },
@@ -54,14 +60,18 @@
     errors: settings.getErrors('aiProvider'),
     toggle: true,
     targetPrefix: '#provider-',
+    selectizeOptions: {
+        allowEmptyOption: true,
+        placeholder: 'Choose a provider…'|t('ai-hreflang'),
+    },
 }) }}
 
 <div id="provider-anthropic" class="{{ 'anthropic' in hiddenProviders ? 'hidden' }}">
-    <h3>{{ 'Anthropic'|t('ai-hreflang-detector') }}</h3>
+    <h3>{{ 'Anthropic'|t('ai-hreflang') }}</h3>
 
     {{ forms.autosuggestField({
-        label: 'Anthropic API Key'|t('ai-hreflang-detector'),
-        instructions: 'An API key from your [Anthropic Console account](https://console.anthropic.com/).'|t('ai-hreflang-detector'),
+        label: 'Anthropic API Key'|t('ai-hreflang'),
+        instructions: 'An API key from your [Anthropic Console account](https://console.anthropic.com/).'|t('ai-hreflang'),
         id: 'anthropicApiKey',
         name: 'anthropicApiKey',
         placeholder: '$ANTHROPIC_API_KEY',
@@ -71,8 +81,8 @@
     }) }}
 
     {{ forms.autosuggestField({
-        label: 'Anthropic Model'|t('ai-hreflang-detector'),
-        instructions: 'The [Anthropic model](https://docs.anthropic.com/en/docs/about-claude/models) to use, e.g. `claude-haiku-5-5`. A small, cheap model is enough to detect a language.'|t('ai-hreflang-detector'),
+        label: 'Anthropic Model'|t('ai-hreflang'),
+        instructions: 'The [Anthropic model](https://docs.anthropic.com/en/docs/about-claude/models) to use, e.g. `claude-haiku-5-5`. A small, cheap model is enough to detect a language.'|t('ai-hreflang'),
         id: 'anthropicModel',
         name: 'anthropicModel',
         placeholder: 'claude-haiku-5-5',
@@ -83,11 +93,11 @@
 </div>
 
 <div id="provider-openai" class="{{ 'openai' in hiddenProviders ? 'hidden' }}">
-    <h3>{{ 'OpenAI'|t('ai-hreflang-detector') }}</h3>
+    <h3>{{ 'OpenAI'|t('ai-hreflang') }}</h3>
 
     {{ forms.autosuggestField({
-        label: 'OpenAI API Key'|t('ai-hreflang-detector'),
-        instructions: 'An API key from your [OpenAI account](https://platform.openai.com/api-keys).'|t('ai-hreflang-detector'),
+        label: 'OpenAI API Key'|t('ai-hreflang'),
+        instructions: 'An API key from your [OpenAI account](https://platform.openai.com/api-keys).'|t('ai-hreflang'),
         id: 'openAiApiKey',
         name: 'openAiApiKey',
         placeholder: '$OPENAI_API_KEY',
@@ -97,18 +107,18 @@
     }) }}
 
     {{ forms.autosuggestField({
-        label: 'OpenAI Model'|t('ai-hreflang-detector'),
-        instructions: 'The [OpenAI model](https://platform.openai.com/docs/models) to use, e.g. `gpt-5-nano`. A small, cheap model is enough to detect a language.'|t('ai-hreflang-detector'),
+        label: 'OpenAI Model'|t('ai-hreflang'),
+        instructions: 'The [OpenAI model](https://platform.openai.com/docs/models) to use, e.g. `gpt-6-luna`. A small, cheap model is enough to detect a language.'|t('ai-hreflang'),
         id: 'openAiModel',
         name: 'openAiModel',
-        placeholder: 'gpt-5-nano',
+        placeholder: 'gpt-6-luna',
         suggestEnvVars: true,
         value: settings.openAiModel,
         errors: settings.getErrors('openAiModel'),
     }) }}
 
     {{ forms.selectizeField({
-        label: 'OpenAI Reasoning Effort'|t('ai-hreflang-detector'),
+        label: 'OpenAI Reasoning Effort'|t('ai-hreflang'),
         instructions: reasoningEffortInstructions,
         id: 'openAiReasoningEffort',
         name: 'openAiReasoningEffort',
@@ -120,11 +130,11 @@
 </div>
 
 <div id="provider-langdock" class="{{ 'langdock' in hiddenProviders ? 'hidden' }}">
-    <h3>{{ 'Langdock'|t('ai-hreflang-detector') }}</h3>
+    <h3>{{ 'Langdock'|t('ai-hreflang') }}</h3>
 
     {{ forms.autosuggestField({
-        label: 'Langdock API Key'|t('ai-hreflang-detector'),
-        instructions: 'An API key from your [Langdock workspace](https://docs.langdock.com/en/developer/overview/api-introduction). One key works for both model authors.'|t('ai-hreflang-detector'),
+        label: 'Langdock API Key'|t('ai-hreflang'),
+        instructions: 'An API key from your [Langdock workspace](https://docs.langdock.com/en/developer/overview/api-introduction). One key works for both model authors.'|t('ai-hreflang'),
         id: 'langdockApiKey',
         name: 'langdockApiKey',
         placeholder: '$LANGDOCK_API_KEY',
@@ -134,8 +144,8 @@
     }) }}
 
     {{ forms.selectizeField({
-        label: 'Langdock Model Author'|t('ai-hreflang-detector'),
-        instructions: 'The author of the model below, so requests go to the matching Langdock API: Anthropic for models such as Claude, or OpenAI for models such as GPT. An environment variable must resolve to `anthropic` or `openai`; save and reload to show the matching settings.'|t('ai-hreflang-detector'),
+        label: 'Langdock Model Author'|t('ai-hreflang'),
+        instructions: 'The author of the model below, so requests go to the matching Langdock API: Anthropic for models such as Claude, or OpenAI for models such as GPT. An environment variable must resolve to `anthropic` or `openai`; save and reload to show the matching settings.'|t('ai-hreflang'),
         id: 'langdockModelAuthor',
         name: 'langdockModelAuthor',
         options: [
@@ -150,8 +160,8 @@
     }) }}
 
     {{ forms.autosuggestField({
-        label: 'Langdock Model'|t('ai-hreflang-detector'),
-        instructions: 'The model to use, as named in Langdock, from the model author above. See how to list the models in your workspace for the [Anthropic](https://docs.langdock.com/en/developer/completion-api/anthropic) or [OpenAI](https://docs.langdock.com/en/developer/completion-api/openai-responses) API.'|t('ai-hreflang-detector'),
+        label: 'Langdock Model'|t('ai-hreflang'),
+        instructions: 'The model to use, as named in Langdock, from the model author above. See how to list the models in your workspace for the [Anthropic](https://docs.langdock.com/en/developer/completion-api/anthropic) or [OpenAI](https://docs.langdock.com/en/developer/completion-api/openai-responses) API.'|t('ai-hreflang'),
         id: 'langdockModel',
         name: 'langdockModel',
         suggestEnvVars: true,
@@ -161,7 +171,7 @@
 
     <div id="langdock-author-openai" class="{{ 'openai' in hiddenLangdockAuthors ? 'hidden' }}">
         {{ forms.selectizeField({
-            label: 'Langdock Reasoning Effort'|t('ai-hreflang-detector'),
+            label: 'Langdock Reasoning Effort'|t('ai-hreflang'),
             instructions: reasoningEffortInstructions,
             id: 'langdockReasoningEffort',
             name: 'langdockReasoningEffort',
@@ -174,11 +184,11 @@
 </div>
 
 <div id="provider-openrouter" class="{{ 'openrouter' in hiddenProviders ? 'hidden' }}">
-    <h3>{{ 'OpenRouter'|t('ai-hreflang-detector') }}</h3>
+    <h3>{{ 'OpenRouter'|t('ai-hreflang') }}</h3>
 
     {{ forms.autosuggestField({
-        label: 'OpenRouter API Key'|t('ai-hreflang-detector'),
-        instructions: 'An API key from your [OpenRouter account](https://openrouter.ai/keys). The account needs credit.'|t('ai-hreflang-detector'),
+        label: 'OpenRouter API Key'|t('ai-hreflang'),
+        instructions: 'An API key from your [OpenRouter account](https://openrouter.ai/keys). The account needs credit.'|t('ai-hreflang'),
         id: 'openRouterApiKey',
         name: 'openRouterApiKey',
         placeholder: '$OPENROUTER_API_KEY',
@@ -188,18 +198,18 @@
     }) }}
 
     {{ forms.autosuggestField({
-        label: 'OpenRouter Model'|t('ai-hreflang-detector'),
-        instructions: 'The model’s name on OpenRouter, which starts with the model’s author, e.g. `openai/gpt-5-nano`. A small, cheap model is enough to detect a language.'|t('ai-hreflang-detector'),
+        label: 'OpenRouter Model'|t('ai-hreflang'),
+        instructions: 'The model’s name on OpenRouter, which starts with the model’s author, e.g. `openai/gpt-6-luna` or `anthropic/claude-haiku-5.5`. A small, cheap model is enough to detect a language.'|t('ai-hreflang'),
         id: 'openRouterModel',
         name: 'openRouterModel',
-        placeholder: 'openai/gpt-5-nano',
+        placeholder: 'openai/gpt-6-luna',
         suggestEnvVars: true,
         value: settings.openRouterModel,
         errors: settings.getErrors('openRouterModel'),
     }) }}
 
     {{ forms.selectizeField({
-        label: 'OpenRouter Reasoning Effort'|t('ai-hreflang-detector'),
+        label: 'OpenRouter Reasoning Effort'|t('ai-hreflang'),
         instructions: reasoningEffortInstructions,
         id: 'openRouterReasoningEffort',
         name: 'openRouterReasoningEffort',
@@ -210,21 +220,35 @@
     }) }}
 </div>
 
-<h2>{{ 'Detection'|t('ai-hreflang-detector') }}</h2>
+<h2>{{ 'Detection'|t('ai-hreflang') }}</h2>
 
+{% set defaultPrompt = constant('DEFAULT_PROMPT', settings) %}
 {{ forms.textareaField({
-    label: 'Prompt'|t('ai-hreflang-detector'),
-    instructions: 'Sent to the AI provider with each page’s text. The reply must be only a BCP 47 language subtag, without a region, such as `en`, or `und` when the language can’t be told, which leaves the page on its site’s hreflang. Any other reply fails.'|t('ai-hreflang-detector'),
+    label: 'Prompt'|t('ai-hreflang'),
+    instructions: 'Sent to the AI provider with each page’s text. Leave blank to use the default, shown in grey. **Reset to default** puts the default in, to edit it. The reply must be only an ISO 639-1 language code, without a region, such as `en`, or `und` when the language can’t be told, which leaves the page on its site’s hreflang. Any other reply fails.'|t('ai-hreflang'),
     id: 'prompt',
     name: 'prompt',
-    rows: 5,
+    rows: 7,
+    placeholder: defaultPrompt,
     value: settings.prompt,
     errors: settings.getErrors('prompt'),
 }) }}
 
+{# Replaces the prompt with the default, to edit it #}
+<button type="button" id="prompt-default" class="btn small" style="margin: -16px 0 24px;">{{ 'Reset to default'|t('ai-hreflang') }}</button>
+
+{% js %}
+document.getElementById({{ 'prompt-default'|namespaceInputId|json_encode|raw }}).addEventListener('click', () => {
+    const prompt = document.getElementById({{ 'prompt'|namespaceInputId|json_encode|raw }});
+    prompt.value = {{ defaultPrompt|json_encode|raw }};
+    prompt.dispatchEvent(new Event('input', { bubbles: true }));
+    prompt.focus();
+});
+{% endjs %}
+
 {{ forms.lightswitchField({
-    label: 'Detect when a page is saved'|t('ai-hreflang-detector'),
-    instructions: 'Detects the language of a page in the queue after it is saved, on each of its sites. A page whose text hasn’t changed isn’t sent again.'|t('ai-hreflang-detector'),
+    label: 'Detect when a page is saved'|t('ai-hreflang'),
+    instructions: 'Detects the language of a page in the queue after it is saved, on each site the save changed, by fetching the live page and reading the element the Content Selector matches. Pages that aren’t live can’t be fetched, so they aren’t detected. With Blitz refreshing its cache, pages are detected once Blitz has refreshed them instead, which also covers a related entry changing or a scheduled entry going live. A page whose text hasn’t changed isn’t sent again. [Which text is read]({url})'|t('ai-hreflang', { url: cpUrl('utilities/ai-hreflang#how-pages-are-detected') }),
     id: 'detectOnSave',
     name: 'detectOnSave',
     on: settings.detectOnSave,
@@ -232,21 +256,30 @@
 }) }}
 
 {{ forms.textField({
-    label: 'Minimum Words'|t('ai-hreflang-detector'),
-    instructions: 'A page needs at least this many words to be sent. Pages with fewer keep their site’s own hreflang, as there isn’t enough text to tell their language reliably.'|t('ai-hreflang-detector'),
-    id: 'minimumWords',
-    name: 'minimumWords',
+    label: 'Queue Priority'|t('ai-hreflang'),
+    instructions: 'The priority of the plugin’s queue jobs. Lower numbers run first, so keep this higher than the priorities of the jobs that clear page caches, and pages are fetched after their caches are cleared. Blitz’s are 10 and 100 by default, and Craft’s default is 1024. The jobs are queued at the end of the request, after Blitz queues its own.'|t('ai-hreflang'),
+    id: 'queuePriority',
+    name: 'queuePriority',
     type: 'number',
-    min: 1,
-    max: 1000,
+    min: 0,
     size: 7,
-    value: settings.minimumWords,
-    errors: settings.getErrors('minimumWords'),
+    value: settings.queuePriority,
+    errors: settings.getErrors('queuePriority'),
 }) }}
 
 {{ forms.textField({
-    label: 'Maximum Characters'|t('ai-hreflang-detector'),
-    instructions: 'How much of a page’s text is sent. A language needs little text to be detected, and less text costs less. [Which text is read]({url})'|t('ai-hreflang-detector', { url: cpUrl('utilities/ai-hreflang-detector#how-pages-are-detected') }),
+    label: 'Content Selector'|t('ai-hreflang'),
+    instructions: 'The CSS selector of the element whose text is read from each page, such as `main`, `#content` or `.page-body`. Pick the element that holds the page’s own content, without the menus, footer or cookie banner around it, which are in the site’s language. A page where nothing matches, or a blank selector, is read from its `<body>`, without its header and footer.'|t('ai-hreflang'),
+    id: 'contentSelector',
+    name: 'contentSelector',
+    placeholder: 'main',
+    value: settings.contentSelector,
+    errors: settings.getErrors('contentSelector'),
+}) }}
+
+{{ forms.textField({
+    label: 'Maximum Characters'|t('ai-hreflang'),
+    instructions: 'How much of a page’s text is sent. A language needs little text to be detected, and less text costs less. [Which text is read]({url})'|t('ai-hreflang', { url: cpUrl('utilities/ai-hreflang#how-pages-are-detected') }),
     id: 'maxCharacters',
     name: 'maxCharacters',
     type: 'number',
@@ -255,4 +288,19 @@
     size: 7,
     value: settings.maxCharacters,
     errors: settings.getErrors('maxCharacters'),
+}) }}
+
+<h2>{{ 'hreflang'|t('ai-hreflang') }}</h2>
+
+{{ forms.selectField({
+    label: 'hreflang Format'|t('ai-hreflang'),
+    instructions: 'How each page’s hreflang is written. **Match each site’s language setting** keeps the region if the site’s language has one, so English on a `fr-FR` site is `en-FR` and on a `fr` site is `en`. **Language only** always drops the region, so it is `en`. With **Language only**, sites in the same language, such as `en-GB` and `en-US`, give the same hreflang, which search engines can’t tell apart.'|t('ai-hreflang'),
+    id: 'hreflangFormat',
+    name: 'hreflangFormat',
+    options: [
+        { label: 'Match each site’s language setting, e.g. en-FR or en'|t('ai-hreflang'), value: 'site' },
+        { label: 'Language only, e.g. en'|t('ai-hreflang'), value: 'language' },
+    ],
+    value: settings.hreflangFormat,
+    errors: settings.getErrors('hreflangFormat'),
 }) }}

@@ -1,12 +1,13 @@
 <?php
 
-namespace extreme\aihreflangdetector;
+namespace heavymetalavo\aihreflang;
 
 use Craft;
+use craft\base\Element;
+use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\Model;
 use craft\base\Plugin;
-use craft\elements\Entry;
 use craft\events\DefineMenuItemsEvent;
 use craft\events\ModelEvent;
 use craft\events\PluginEvent;
@@ -14,29 +15,31 @@ use craft\events\RegisterComponentTypesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
-use extreme\aihreflangdetector\fields\ContentLanguage;
-use extreme\aihreflangdetector\models\Settings;
-use extreme\aihreflangdetector\services\Ai;
-use extreme\aihreflangdetector\services\Detector;
-use extreme\aihreflangdetector\services\Hreflang;
-use extreme\aihreflangdetector\utilities\AiHreflangDetectorUtility;
+use heavymetalavo\aihreflang\fields\ContentLanguage;
+use heavymetalavo\aihreflang\models\Settings;
+use heavymetalavo\aihreflang\services\Ai;
+use heavymetalavo\aihreflang\services\Detector;
+use heavymetalavo\aihreflang\services\Hreflang;
+use heavymetalavo\aihreflang\utilities\AiHreflangUtility;
 use nystudio107\seomatic\events\AddDynamicMetaEvent;
 use nystudio107\seomatic\helpers\DynamicMeta;
+use putyourlightson\blitz\events\RefreshCacheEvent;
+use putyourlightson\blitz\services\RefreshCacheService;
 use yii\base\Event;
 
 /**
- * AI Hreflang Detector plugin
+ * AI Hreflang plugin
  *
  * Detects the language each page is written in with AI, and sets its hreflang to match. A page on the French site
  * that is still in English gets `en-FR` rather than `fr-FR`.
  *
- * @method static AiHreflangDetector getInstance()
+ * @method static AiHreflang getInstance()
  * @method Settings getSettings()
  * @property-read Ai $ai
  * @property-read Detector $detector
  * @property-read Hreflang $hreflang
  */
-class AiHreflangDetector extends Plugin
+class AiHreflang extends Plugin
 {
     /**
      * Handle of the Content Language field the plugin creates.
@@ -95,30 +98,41 @@ class AiHreflangDetector extends Plugin
             Utilities::class,
             Utilities::EVENT_REGISTER_UTILITIES,
             function(RegisterComponentTypesEvent $event) {
-                $event->types[] = AiHreflangDetectorUtility::class;
+                $event->types[] = AiHreflangUtility::class;
             }
         );
 
-        // After propagating, so the entry has been saved on all its sites
+        // After propagating, so the element has been saved on all its sites
         Event::on(
-            Entry::class,
-            Entry::EVENT_AFTER_PROPAGATE,
+            Element::class,
+            Element::EVENT_AFTER_PROPAGATE,
             function(ModelEvent $event) {
-                /** @var Entry $entry */
-                $entry = $event->sender;
-                $this->detector->handleEntrySave($entry);
+                /** @var ElementInterface $element */
+                $element = $event->sender;
+                $this->detector->handleElementSave($element);
             }
         );
 
         Event::on(
-            Entry::class,
-            Entry::EVENT_DEFINE_ACTION_MENU_ITEMS,
+            Element::class,
+            Element::EVENT_DEFINE_ACTION_MENU_ITEMS,
             function(DefineMenuItemsEvent $event) {
-                /** @var Entry $entry */
-                $entry = $event->sender;
-                $this->detector->addActionMenuItem($entry, $event);
+                /** @var ElementInterface $element */
+                $element = $event->sender;
+                $this->detector->addActionMenuItem($element, $event);
             }
         );
+
+        // With Blitz refreshing its cache, pages are detected once Blitz has refreshed them (see Detector::usesBlitz())
+        if (class_exists(RefreshCacheService::class)) {
+            Event::on(
+                RefreshCacheService::class,
+                RefreshCacheService::EVENT_AFTER_REFRESH_CACHE,
+                function(RefreshCacheEvent $event) {
+                    $this->detector->handleBlitzRefresh($event->siteUris);
+                }
+            );
+        }
 
         if (class_exists(DynamicMeta::class)) {
             Event::on(
@@ -171,7 +185,7 @@ class AiHreflangDetector extends Plugin
 
     protected function settingsHtml(): ?string
     {
-        return Craft::$app->getView()->renderTemplate('ai-hreflang-detector/_settings', [
+        return Craft::$app->getView()->renderTemplate('ai-hreflang/_settings', [
             'settings' => $this->getSettings(),
             'ai' => $this->ai,
         ]);

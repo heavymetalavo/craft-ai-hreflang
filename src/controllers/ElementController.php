@@ -1,82 +1,84 @@
 <?php
 
-namespace extreme\aihreflangdetector\controllers;
+namespace heavymetalavo\aihreflang\controllers;
 
 use Craft;
-use craft\elements\Entry;
 use craft\web\Controller;
-use extreme\aihreflangdetector\fields\data\ContentLanguageData;
-use extreme\aihreflangdetector\AiHreflangDetector;
-use extreme\aihreflangdetector\services\Detector;
+use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
+use heavymetalavo\aihreflang\AiHreflang;
+use heavymetalavo\aihreflang\services\Detector;
 use Throwable;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
- * Detects the language of a single entry, from its action menu.
+ * Detects the language of a single page, from its element's action menu.
  *
- * @package extreme\aihreflangdetector\controllers
+ * @package heavymetalavo\aihreflang\controllers
  */
-class EntryController extends Controller
+class ElementController extends Controller
 {
     /**
-     * Detects the language of an entry on one site now, even if its text hasn't changed.
+     * Detects the language of a page on one site now, even if its text hasn't changed.
      *
      * Posted params:
-     * - `entryId`: the entry, or a draft of it, whose canonical entry is detected
+     * - `elementId`: the page's element, or a draft of it, whose canonical element is detected
      * - `siteId`: the site
      */
     public function actionDetect(): ?Response
     {
         $this->requirePostRequest();
 
-        $entry = Entry::find()
-            ->id($this->request->getRequiredBodyParam('entryId'))
-            ->siteId($this->request->getRequiredBodyParam('siteId'))
-            ->drafts(null)
-            ->provisionalDrafts(null)
-            ->status(null)
-            ->one();
+        $element = Craft::$app->getElements()->getElementById(
+            (int)$this->request->getRequiredBodyParam('elementId'),
+            null,
+            (int)$this->request->getRequiredBodyParam('siteId'),
+            ['drafts' => null, 'provisionalDrafts' => null, 'status' => null],
+        );
 
-        if ($entry === null) {
-            throw new NotFoundHttpException('Entry not found');
+        if ($element === null) {
+            throw new NotFoundHttpException('Element not found');
         }
 
-        $entry = $entry->getCanonical();
+        $element = $element->getCanonical();
 
-        if (!$entry->canSave(Craft::$app->getUser()->getIdentity())) {
-            throw new ForbiddenHttpException('User not permitted to save this entry.');
+        if (!$element->canSave(Craft::$app->getUser()->getIdentity())) {
+            throw new ForbiddenHttpException('User not permitted to save this element.');
         }
 
-        $plugin = AiHreflangDetector::getInstance();
+        $plugin = AiHreflang::getInstance();
 
         try {
-            $result = $plugin->detector->detect($entry, true);
+            $result = $plugin->detector->detect($element, true);
         } catch (Throwable $e) {
             return $this->asFailure($e->getMessage());
         }
 
         if ($result === Detector::RESULT_CHOSEN) {
-            return $this->asFailure(Craft::t('ai-hreflang-detector', 'The language was chosen by an editor, so it isn’t detected.'));
+            return $this->asFailure(Craft::t('ai-hreflang', 'The language was chosen by an editor, so it isn’t detected.'));
         }
 
         if ($result === Detector::RESULT_TOO_SHORT) {
-            return $this->asFailure(Craft::t('ai-hreflang-detector', 'The page has fewer than {count, number} words, so it keeps its site’s hreflang.', [
-                'count' => $plugin->getSettings()->minimumWords,
+            return $this->asFailure(Craft::t('ai-hreflang', 'The page has fewer than {count, number} words, so it keeps its site’s hreflang.', [
+                'count' => Detector::MINIMUM_WORDS,
             ]));
         }
 
+        if ($result === Detector::RESULT_NO_PAGE) {
+            return $this->asFailure(Craft::t('ai-hreflang', 'The page isn’t live, so it can’t be fetched to detect its language.'));
+        }
+
         if ($result === Detector::RESULT_UNDETERMINED) {
-            return $this->asFailure(Craft::t('ai-hreflang-detector', 'The language couldn’t be told, so the page keeps its site’s hreflang.'));
+            return $this->asFailure(Craft::t('ai-hreflang', 'The language couldn’t be told, so the page keeps its site’s hreflang.'));
         }
 
         /** @var ContentLanguageData $value */
-        $value = $entry->getFieldValue(AiHreflangDetector::FIELD_HANDLE);
+        $value = $element->getFieldValue(AiHreflang::FIELD_HANDLE);
 
-        return $this->asSuccess(Craft::t('ai-hreflang-detector', 'Detected {language}, so the hreflang is {hreflang}.', [
+        return $this->asSuccess(Craft::t('ai-hreflang', 'Detected {language}, so the hreflang is {hreflang}.', [
             'language' => $value->getLanguageName(),
-            'hreflang' => $plugin->hreflang->getHreflang($entry->getSite(), $value->language),
+            'hreflang' => $plugin->hreflang->getHreflang($element->getSite(), $value->language),
         ]));
     }
 }

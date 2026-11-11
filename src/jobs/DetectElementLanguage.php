@@ -1,57 +1,48 @@
 <?php
 
-namespace extreme\aihreflangdetector\jobs;
+namespace heavymetalavo\aihreflang\jobs;
 
 use Craft;
-use craft\elements\Entry;
+use craft\base\ElementInterface;
 use craft\queue\BaseJob;
-use extreme\aihreflangdetector\AiHreflangDetector;
-use extreme\aihreflangdetector\services\Detector;
-use Throwable;
+use heavymetalavo\aihreflang\AiHreflang;
 
 /**
- * Detects the language of an entry on each of its sites, after it was saved.
+ * Detects the language of a page on one of its element's sites, after the element was saved.
  *
- * Every site is checked because content that isn't translated per site changes on them all. Sites whose text hasn't
- * changed aren't sent to the AI provider.
+ * A job is queued for each site, because content that isn't translated per site changes on them all, and so a failure
+ * on one site can be retried without sending the others again. A site whose text hasn't changed isn't sent to the AI
+ * provider.
  *
- * @package extreme\aihreflangdetector\jobs
+ * @package heavymetalavo\aihreflang\jobs
  */
-class DetectEntryLanguage extends BaseJob
+class DetectElementLanguage extends BaseJob
 {
-    public int $entryId;
+    public int $elementId;
+
+    /**
+     * @var class-string<ElementInterface>
+     */
+    public string $elementType;
+
+    public int $siteId;
 
     /**
      * @inheritdoc
-     * @throws \Exception If the language couldn't be detected on a site
+     * @throws \Throwable If the language couldn't be detected
      */
     public function execute($queue): void
     {
-        $detector = AiHreflangDetector::getInstance()->detector;
-        $errors = [];
+        $detector = AiHreflang::getInstance()->detector;
 
-        $entries = Entry::find()
-            ->id($this->entryId)
-            ->site('*')
-            ->unique(false)
-            ->status(Detector::STATUSES)
-            ->all();
+        $element = $this->elementType::find()
+            ->id($this->elementId)
+            ->siteId($this->siteId)
+            ->status($detector->getLiveStatus($this->elementType))
+            ->one();
 
-        foreach ($entries as $entry) {
-            if (!$detector->hasField($entry)) {
-                continue;
-            }
-
-            try {
-                $detector->detect($entry);
-            } catch (Throwable $e) {
-                Craft::error(sprintf('Couldn’t detect the language of entry %d on site %d: %s', $entry->id, $entry->siteId, $e->getMessage()), __METHOD__);
-                $errors[] = $entry->getSite()->getName() . ': ' . $e->getMessage();
-            }
-        }
-
-        if ($errors) {
-            throw new \Exception(implode("\n", $errors));
+        if ($element !== null && $detector->hasField($element)) {
+            $detector->detect($element);
         }
     }
 
@@ -60,6 +51,10 @@ class DetectEntryLanguage extends BaseJob
      */
     protected function defaultDescription(): ?string
     {
-        return Craft::t('ai-hreflang-detector', 'Detecting the language of entry {id}', ['id' => $this->entryId]);
+        return Craft::t('ai-hreflang', 'Detecting the language of {type} {id} on {site}', [
+            'type' => $this->elementType::lowerDisplayName(),
+            'id' => $this->elementId,
+            'site' => Craft::$app->getSites()->getSiteById($this->siteId, true)?->getName() ?? $this->siteId,
+        ]);
     }
 }

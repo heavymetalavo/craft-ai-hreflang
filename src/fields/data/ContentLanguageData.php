@@ -1,6 +1,6 @@
 <?php
 
-namespace extreme\aihreflangdetector\fields\data;
+namespace heavymetalavo\aihreflang\fields\data;
 
 use Craft;
 use DateTime;
@@ -9,7 +9,7 @@ use yii\base\BaseObject;
 /**
  * The value of a Content Language field: the language a page is written in, and how it was decided.
  *
- * @package extreme\aihreflangdetector\fields\data
+ * @package heavymetalavo\aihreflang\fields\data
  */
 class ContentLanguageData extends BaseObject
 {

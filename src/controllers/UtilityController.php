@@ -1,18 +1,18 @@
 <?php
 
-namespace extreme\aihreflangdetector\controllers;
+namespace heavymetalavo\aihreflang\controllers;
 
 use Craft;
 use craft\web\Controller;
-use extreme\aihreflangdetector\AiHreflangDetector;
-use extreme\aihreflangdetector\jobs\DetectLanguages;
-use extreme\aihreflangdetector\utilities\AiHreflangDetectorUtility;
+use heavymetalavo\aihreflang\AiHreflang;
+use heavymetalavo\aihreflang\jobs\DetectLanguages;
+use heavymetalavo\aihreflang\utilities\AiHreflangUtility;
 use yii\web\Response;
 
 /**
- * Actions of the AI Hreflang Detector utility.
+ * Actions of the AI Hreflang utility.
  *
- * @package extreme\aihreflangdetector\controllers
+ * @package heavymetalavo\aihreflang\controllers
  */
 class UtilityController extends Controller
 {
@@ -21,7 +21,7 @@ class UtilityController extends Controller
      */
     public function beforeAction($action): bool
     {
-        $this->requirePermission('utility:' . AiHreflangDetectorUtility::id());
+        $this->requirePermission('utility:' . AiHreflangUtility::id());
 
         return parent::beforeAction($action);
     }
@@ -37,25 +37,27 @@ class UtilityController extends Controller
     {
         $this->requirePostRequest();
 
-        $error = AiHreflangDetector::getInstance()->ai->getConfigurationError();
+        $error = AiHreflang::getInstance()->ai->getConfigurationError();
         if ($error !== null) {
             return $this->asFailure($error);
         }
 
         $siteId = $this->request->getBodyParam('siteId');
         $sites = Craft::$app->getSites();
-        $siteIds = $siteId ? [(int)$siteId] : $sites->getAllSiteIds();
+        $siteIds = $siteId ? [(int)$siteId] : $sites->getAllSiteIds(false);
         $force = (bool)$this->request->getBodyParam('force');
 
         foreach ($siteIds as $id) {
-            if ($sites->getSiteById($id) === null) {
-                return $this->asFailure(Craft::t('ai-hreflang-detector', 'Site {id} doesn’t exist.', ['id' => $id]));
+            if (!$sites->getSiteById($id)?->getEnabled()) {
+                return $this->asFailure(Craft::t('ai-hreflang', 'Site {id} doesn’t exist or is disabled.', ['id' => $id]));
             }
 
-            Craft::$app->getQueue()->push(new DetectLanguages(['siteId' => $id, 'force' => $force]));
+            foreach (array_keys(AiHreflang::getInstance()->detector->getElementTypes()) as $elementType) {
+                Craft::$app->getQueue()->priority(AiHreflang::getInstance()->getSettings()->queuePriority)->push(new DetectLanguages(['siteId' => $id, 'elementType' => $elementType, 'force' => $force]));
+            }
         }
 
-        return $this->asSuccess(Craft::t('ai-hreflang-detector', 'Detection queued for {count, plural, =1{one site} other{# sites}}.', [
+        return $this->asSuccess(Craft::t('ai-hreflang', 'Detection queued for {count, plural, =1{one site} other{# sites}}.', [
             'count' => count($siteIds),
         ]));
     }

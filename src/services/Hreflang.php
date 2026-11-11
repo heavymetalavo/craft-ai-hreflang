@@ -1,13 +1,13 @@
 <?php
 
-namespace extreme\aihreflangdetector\services;
+namespace heavymetalavo\aihreflang\services;
 
 use Craft;
 use craft\base\Component;
-use craft\elements\Entry;
+use craft\base\ElementInterface;
 use craft\models\Site;
-use extreme\aihreflangdetector\fields\data\ContentLanguageData;
-use extreme\aihreflangdetector\AiHreflangDetector;
+use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
+use heavymetalavo\aihreflang\AiHreflang;
 use nystudio107\seomatic\events\AddDynamicMetaEvent;
 use nystudio107\seomatic\helpers\DynamicMeta;
 use nystudio107\seomatic\models\MetaLink;
@@ -16,7 +16,7 @@ use nystudio107\seomatic\Seomatic;
 /**
  * Builds hreflang values from each site's Content Language, and puts them in SEOmatic's alternate links.
  *
- * @package extreme\aihreflangdetector\services
+ * @package heavymetalavo\aihreflang\services
  */
 class Hreflang extends Component
 {
@@ -30,7 +30,8 @@ class Hreflang extends Component
 
     /**
      * The hreflang for a page on a site, written in the given language, in the format of the site's language setting
-     * (e.g. `fr-FR`). The site's region is kept, so English content on the French site is `en-FR`.
+     * (e.g. `fr-FR`). The site's region is kept, so English content on the French site is `en-FR`, unless the
+     * `hreflangFormat` setting is `language`, which gives the language alone (`en`).
      *
      * @param string|null $contentLanguage BCP 47 language subtag, e.g. `en`, or null to use the site's language
      */
@@ -38,6 +39,10 @@ class Hreflang extends Component
     {
         $siteHreflang = str_replace('_', '-', $site->language);
         $parts = explode('-', $siteHreflang);
+
+        if (AiHreflang::getInstance()->getSettings()->hreflangFormat === 'language') {
+            return $contentLanguage ?? strtolower($parts[0]);
+        }
 
         if ($contentLanguage === null || $contentLanguage === strtolower($parts[0])) {
             return $siteHreflang;
@@ -62,9 +67,9 @@ class Hreflang extends Component
 
     /**
      * Rewrites the hreflang values of SEOmatic's alternate links in the format of the sites' language settings
-     * (`en-GB` rather than SEOmatic's `en-gb`). For an entry, each site's value comes from the Content Language of its
-     * copy of it. SEOmatic caches the result with the rest of the page's meta, and clears that cache when an entry in
-     * the section is saved.
+     * (`en-GB` rather than SEOmatic's `en-gb`). For a page, each site's value comes from the Content Language of its
+     * element's copy on that site. SEOmatic caches the result with the rest of the page's meta, and clears that cache
+     * when the element is saved.
      */
     public function updateSeomaticAlternates(AddDynamicMetaEvent $event): void
     {
@@ -75,8 +80,8 @@ class Hreflang extends Component
             return;
         }
 
-        $entry = Craft::$app->getUrlManager()->getMatchedElement();
-        $languages = $entry instanceof Entry ? $this->getContentLanguages($entry) : [];
+        $element = Craft::$app->getUrlManager()->getMatchedElement();
+        $languages = $element instanceof ElementInterface ? $this->getContentLanguages($element) : [];
 
         // The alternate links were built from these localized URLs, in this order, with an `x-default` added after
         // the primary site's.
@@ -99,30 +104,30 @@ class Hreflang extends Component
     }
 
     /**
-     * The Content Language of each site's copy of an entry.
+     * The Content Language of each site's copy of an element.
      *
      * @return array<int, string|null> Language codes, indexed by site ID
      */
-    public function getContentLanguages(Entry $entry): array
+    public function getContentLanguages(ElementInterface $element): array
     {
-        $handle = AiHreflangDetector::FIELD_HANDLE;
+        $handle = AiHreflang::FIELD_HANDLE;
         $languages = [];
 
-        $siteEntries = Entry::find()
-            ->id($entry->getCanonicalId())
+        $siteElements = $element::find()
+            ->id($element->getCanonicalId())
             ->site('*')
             ->unique(false)
             ->status(null)
             ->all();
 
-        foreach ($siteEntries as $siteEntry) {
-            if ($siteEntry->getFieldLayout()?->getFieldByHandle($handle) === null) {
+        foreach ($siteElements as $siteElement) {
+            if ($siteElement->getFieldLayout()?->getFieldByHandle($handle) === null) {
                 continue;
             }
 
             /** @var ContentLanguageData $value */
-            $value = $siteEntry->getFieldValue($handle);
-            $languages[$siteEntry->siteId] = $value->language;
+            $value = $siteElement->getFieldValue($handle);
+            $languages[$siteElement->siteId] = $value->language;
         }
 
         return $languages;

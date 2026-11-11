@@ -1,14 +1,14 @@
 <?php
 
-namespace extreme\aihreflangdetector\services;
+namespace heavymetalavo\aihreflang\services;
 
 use Craft;
 use craft\base\Component;
 use craft\helpers\App;
 use craft\helpers\Json;
 use Exception;
-use extreme\aihreflangdetector\AiHreflangDetector;
-use extreme\aihreflangdetector\models\Settings;
+use heavymetalavo\aihreflang\AiHreflang;
+use heavymetalavo\aihreflang\models\Settings;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
@@ -21,7 +21,7 @@ use GuzzleHttp\Exception\RequestException;
  * - OpenAI, OpenRouter, and Langdock's OpenAI models through the Responses API (`POST {baseUrl}/responses`)
  * - Anthropic, and Langdock's Anthropic models through the Messages API (`POST {baseUrl}/messages`)
  *
- * @package extreme\aihreflangdetector\services
+ * @package heavymetalavo\aihreflang\services
  */
 class Ai extends Component
 {
@@ -31,9 +31,11 @@ class Ai extends Component
     public const DEFAULT_TIMEOUT = 30;
 
     /**
-     * The most tokens the Messages API may reply with. A language code needs a few.
+     * The most tokens the Messages API may reply with. A language code needs a few, but a model that thinks first,
+     * such as `claude-haiku-5-5` through Langdock, where thinking isn't turned off, needs room to finish. Only the tokens
+     * used are billed.
      */
-    private const MAX_TOKENS = 50;
+    private const MAX_TOKENS = 1024;
 
     private ?Client $client = null;
 
@@ -89,23 +91,23 @@ class Ai extends Component
         $provider = $this->getProvider();
 
         if ($provider === '') {
-            return Craft::t('ai-hreflang-detector', 'No AI provider is chosen.');
+            return Craft::t('ai-hreflang', 'No AI provider is chosen.');
         }
 
         if (!isset(Settings::PROVIDERS[$provider])) {
-            return Craft::t('ai-hreflang-detector', '“{provider}” isn’t a supported AI provider. Choose Anthropic, OpenAI, Langdock or OpenRouter.', ['provider' => $provider]);
+            return Craft::t('ai-hreflang', '“{provider}” isn’t a supported AI provider. Choose Anthropic, OpenAI, Langdock or OpenRouter.', ['provider' => $provider]);
         }
 
         if ($this->getApiKey() === '') {
-            return Craft::t('ai-hreflang-detector', 'No {provider} API key is set.', ['provider' => $this->getProviderLabel()]);
+            return Craft::t('ai-hreflang', 'No {provider} API key is set.', ['provider' => $this->getProviderLabel()]);
         }
 
         if ($this->getModel() === '') {
-            return Craft::t('ai-hreflang-detector', 'No {provider} model is set.', ['provider' => $this->getProviderLabel()]);
+            return Craft::t('ai-hreflang', 'No {provider} model is set.', ['provider' => $this->getProviderLabel()]);
         }
 
         if ($provider === 'langdock' && !in_array($this->setting('langdockModelAuthor'), ['anthropic', 'openai'], true)) {
-            return Craft::t('ai-hreflang-detector', 'The Langdock Model Author must be Anthropic or OpenAI.');
+            return Craft::t('ai-hreflang', 'The Langdock Model Author must be Anthropic or OpenAI.');
         }
 
         return null;
@@ -123,14 +125,15 @@ class Ai extends Component
             throw new Exception($error);
         }
 
-        $instructions = App::parseEnv(AiHreflangDetector::getInstance()->getSettings()->prompt);
+        $instructions = App::parseEnv(AiHreflang::getInstance()->getSettings()->prompt) ?: Settings::DEFAULT_PROMPT;
         $apiKey = $this->getApiKey();
 
         $reply = match ($this->getProvider()) {
+            // Thinking is turned off, as a language code needs none: left on, it can use up the reply's tokens
             'anthropic' => $this->sendMessagesRequest('https://api.anthropic.com/v1', [
                 'x-api-key' => $apiKey,
                 'anthropic-version' => '2023-06-01',
-            ], $instructions, $text),
+            ], $instructions, $text, ['thinking' => ['type' => 'disabled']]),
             // OpenAI keeps requests for at least 30 days unless told not to
             'openai' => $this->sendResponsesRequest('https://api.openai.com/v1', $this->setting('openAiReasoningEffort'), $instructions, $text, ['store' => false]),
             // Langdock hosts its models in the EU region
@@ -203,9 +206,10 @@ class Ai extends Component
      * Sends a request to the Messages API and returns the model's reply.
      *
      * @param array<string, string> $headers The authentication headers
+     * @param array $extra Extra request parameters, such as `thinking`
      * @throws Exception
      */
-    private function sendMessagesRequest(string $baseUrl, array $headers, string $instructions, string $text): string
+    private function sendMessagesRequest(string $baseUrl, array $headers, string $instructions, string $text, array $extra = []): string
     {
         $data = $this->post($baseUrl . '/messages', $headers, [
             'model' => $this->getModel(),
@@ -219,6 +223,7 @@ class Ai extends Component
                     ],
                 ],
             ],
+            ...$extra,
         ]);
 
         foreach ($data['content'] ?? [] as $content) {
@@ -227,7 +232,7 @@ class Ai extends Component
             }
         }
 
-        throw new Exception(sprintf('%s returned no text.', $this->getProviderLabel()));
+        throw new Exception(sprintf('%s returned no text (stop reason: %s).', $this->getProviderLabel(), $data['stop_reason'] ?? 'unknown'));
     }
 
     /**
@@ -317,7 +322,7 @@ class Ai extends Component
 
         return [
             'HTTP-Referer' => $url,
-            'X-OpenRouter-Title' => 'extreme/craft-ai-hreflang-detector',
+            'X-OpenRouter-Title' => 'heavymetalavo/craft-ai-hreflang',
             'X-OpenRouter-App-Visibility' => 'hidden',
         ];
     }
@@ -330,7 +335,10 @@ class Ai extends Component
         return !str_contains($model, '-chat') && preg_match('/^(openai\/)?(o\d|gpt-([5-9]|\d{2,}))/', $model);
     }
 
-    private function getClient(): Client
+    /**
+     * The HTTP client for requests to AI providers, also used to fetch pages.
+     */
+    public function getClient(): Client
     {
         if ($this->client === null) {
             // Only supply a timeout when the project hasn't set one in config/guzzle.php, which this would override
@@ -343,6 +351,6 @@ class Ai extends Component
 
     private function setting(string $name): string
     {
-        return (string)App::parseEnv(AiHreflangDetector::getInstance()->getSettings()->$name);
+        return (string)App::parseEnv(AiHreflang::getInstance()->getSettings()->$name);
     }
 }

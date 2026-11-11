@@ -1,4 +1,4 @@
-# 🌍 🤖 AI Hreflang
+# 🌐 🔤 🤖 AI Hreflang
 
 **README** · [Getting started](docs/getting-started.md) · [How it works](docs/how-it-works.md) · [Settings](docs/settings.md)
 

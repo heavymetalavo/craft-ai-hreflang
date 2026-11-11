@@ -1,5 +1,5 @@
 {
-  "name": "extreme/craft-ai-hreflang-detector",
+  "name": "heavymetalavo/craft-ai-hreflang",
   "description": "Detects the language each page is written in with AI, and sets its hreflang to match.",
   "type": "craft-plugin",
   "require": {
@@ -12,15 +12,15 @@
   },
   "autoload": {
     "psr-4": {
-      "extreme\\aihreflangdetector\\": "src/"
+      "heavymetalavo\\aihreflang\\": "src/"
     }
   },
   "extra": {
-    "handle": "ai-hreflang-detector",
-    "name": "AI Hreflang Detector",
-    "developer": "Extreme",
+    "handle": "ai-hreflang",
+    "name": "AI Hreflang",
+    "developer": "heavymetalavo",
     "documentationUrl": "",
-    "class": "extreme\\aihreflangdetector\\AiHreflangDetector"
+    "class": "heavymetalavo\\aihreflang\\AiHreflang"
   },
   "scripts": {
     "check-cs": "ecs check --ansi",
