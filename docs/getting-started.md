@@ -5,6 +5,13 @@
 How to install AI Hreflang, set it up and detect your first pages. For the overview, see the
 [README](../README.md).
 
+## ⚡ Quick start
+
+[Install the plugin](#-installation), then add the **Content Language** field it creates to the field layouts of
+your entry types (and category groups) with public pages. In **Settings → AI Hreflang**, review the settings and add
+your AI provider, API key and model. Finally, open **Utilities → AI Hreflang** and click **Detect missing** to detect
+your existing pages. New and changed pages are detected when they're saved.
+
 ## 📋 Requirements
 
 - Craft CMS 5.8 or later
@@ -21,8 +28,6 @@ Install it with Composer:
 composer require heavymetalavo/craft-ai-hreflang
 ./craft plugin/install ai-hreflang
 ```
-
-For local development, use a Composer path repository with `"symlink": true`.
 
 ## 🏷️ The Content Language field
 
