@@ -83,4 +83,3 @@ from mistakes, bugs or security vulnerabilities in this plugin, so use it at you
 
 If you have any issues or questions, please submit them on
 [GitHub](https://github.com/heavymetalavo/craft-ai-hreflang/issues).
-# craft-ai-hreflang
