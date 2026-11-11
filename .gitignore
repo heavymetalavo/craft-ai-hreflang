@@ -5,3 +5,8 @@
 .env
 /node_modules
 /vendor
+/findings.md
+/AGENTS.md
+/CLAUDE.md
+/plugin-store-gallery
+/.claude
