@@ -254,6 +254,15 @@ document.getElementById({{ 'prompt-default'|namespaceInputId|json_encode|raw }})
     errors: settings.getErrors('detectOnSave'),
 }) }}
 
+{{ forms.lightswitchField({
+    label: 'Skip Scout When Saving Detections'|t('ai-hreflang'),
+    instructions: 'With [Scout](https://plugins.craftcms.com/scout) installed, stops it syncing a page to its search indices when its detected language is saved, which would queue an indexing job for each detected page. Only the plugin’s own save is skipped: pages that editors save are still synced. Turn this on unless your Scout indices include the Content Language field. It has no effect without Scout.'|t('ai-hreflang'),
+    id: 'skipScoutSync',
+    name: 'skipScoutSync',
+    on: settings.skipScoutSync,
+    errors: settings.getErrors('skipScoutSync'),
+}) }}
+
 {{ forms.textField({
     label: 'Queue Priority'|t('ai-hreflang'),
     instructions: 'The priority of the plugin’s queue jobs. Lower numbers run first, so keep this higher than the priorities of the jobs that clear page caches, and pages are fetched after their caches are cleared. Blitz’s are 10 and 100 by default, and Craft’s default is 1024. The jobs are queued at the end of the request, after Blitz queues its own.'|t('ai-hreflang'),

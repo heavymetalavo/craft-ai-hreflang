@@ -87,6 +87,18 @@ Either way, the jobs have a lower priority (2048, the **Queue Priority** setting
   be read before its new copy exists. **Clear** and **Clear and generate** don't.
 - A CDN that keeps serving an old copy after a save would have the same effect.
 
+## 🔎 Scout
+
+Saving a page's detected language is a save like any other, so [Scout](https://plugins.craftcms.com/scout) queues an
+indexing job for the page, which re-sends it to your search indices. Over a whole site that is a job for every
+detected page. If your Scout indices don't include the Content Language field, which is rare, those jobs change
+nothing, and you can turn on **Skip Scout When Saving Detections** to stop them.
+
+- It switches Scout's syncing off only for the plugin's own save, in the queue worker making it, and puts it back
+  straight after, even if the save fails. Pages that editors save, and other queue workers, are unaffected.
+- It has no effect without Scout installed and enabled, or with Scout's own `sync` setting off.
+- Leave it off if your Scout indices include the Content Language field, so a changed language reaches your search.
+
 ## 🔍 Detecting your first pages
 
 Pages saved before the plugin was installed haven't been detected yet. Open **Utilities → AI Hreflang**, which

@@ -169,6 +169,15 @@ class Settings extends Model
     public bool $detectOnSave = false;
 
     /**
+     * Whether to stop Scout syncing a page to its search indices when its detection is saved, if Scout is installed.
+     * The Content Language field is rarely indexed, so those syncs only queue a job for each page. Only the detection's
+     * own save is skipped, in the process making it: pages editors save are still synced.
+     *
+     * @var bool
+     */
+    public bool $skipScoutSync = false;
+
+    /**
      * How many characters of a page's text are sent to the AI provider. Language detection needs little text, so
      * this keeps the cost of long pages down.
      *
@@ -215,7 +224,7 @@ class Settings extends Model
             [['openAiReasoningEffort'], 'validateOneOf', 'params' => ['allowed' => array_map('strval', array_keys(self::REASONING_EFFORTS)), 'message' => 'Invalid OpenAI Reasoning Effort configured.']],
             [['langdockReasoningEffort'], 'validateOneOf', 'params' => ['allowed' => array_map('strval', array_keys(self::REASONING_EFFORTS)), 'message' => 'Invalid Langdock Reasoning Effort configured.']],
             [['openRouterReasoningEffort'], 'validateOneOf', 'params' => ['allowed' => array_map('strval', array_keys(self::REASONING_EFFORTS)), 'message' => 'Invalid OpenRouter Reasoning Effort configured.']],
-            ['detectOnSave', 'boolean'],
+            [['detectOnSave', 'skipScoutSync'], 'boolean'],
             ['maxCharacters', 'integer', 'min' => 100, 'max' => 20000],
             ['queuePriority', 'integer', 'min' => 0],
             ['contentSelector', 'trim'],

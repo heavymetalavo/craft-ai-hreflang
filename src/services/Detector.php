@@ -25,6 +25,7 @@ use heavymetalavo\aihreflang\fields\data\ContentLanguageData;
 use heavymetalavo\aihreflang\jobs\DetectElementLanguage;
 use heavymetalavo\aihreflang\jobs\DetectSiteUris;
 use putyourlightson\blitz\Blitz;
+use rias\scout\Scout;
 use Throwable;
 use yii\base\Event;
 use yii\db\Expression;
@@ -205,6 +206,19 @@ class Detector extends Component
     public function forgetJustSaved(int $elementId): void
     {
         Craft::$app->getCache()->delete($this->justSavedKey($elementId));
+    }
+
+    /**
+     * Scout's settings, or null if Scout isn't installed and enabled. Like Blitz, it's found through the plugin
+     * rather than its class, as a project can have Scout's files without the plugin installed.
+     *
+     * @return \rias\scout\models\Settings|null
+     */
+    private function getScoutSettings(): ?object
+    {
+        $scout = Craft::$app->getPlugins()->getPlugin('scout');
+
+        return $scout instanceof Scout ? $scout->getSettings() : null;
     }
 
     /**
@@ -532,9 +546,23 @@ JS, [
         Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, $nestedSaveEnded);
         Event::on(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipJobs);
 
+        // With the Skip Scout Sync setting, Scout is switched off for this save only. Its `sync` setting is in this
+        // process's memory, so it's put back straight after, even if the save fails, and never stays off for the
+        // pages editors save or for other queue workers.
+        $scoutSettings = AiHreflang::getInstance()->getSettings()->skipScoutSync ? $this->getScoutSettings() : null;
+        $scoutWasSyncing = $scoutSettings?->sync === true;
+
+        if ($scoutWasSyncing) {
+            $scoutSettings->sync = false;
+        }
+
         try {
             $saved = Craft::$app->getElements()->saveElement($element, false, false, false);
         } finally {
+            if ($scoutWasSyncing) {
+                $scoutSettings->sync = true;
+            }
+
             Event::off(Elements::class, Elements::EVENT_BEFORE_SAVE_ELEMENT, $nestedSaveStarted);
             Event::off(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, $nestedSaveEnded);
             Event::off(Queue::class, Queue::EVENT_BEFORE_PUSH, $skipJobs);

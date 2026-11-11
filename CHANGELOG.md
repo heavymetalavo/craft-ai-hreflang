@@ -2,8 +2,7 @@
 
 ## 1.0.2 - 2026-11-11
 
-> {tip} **Detect missing** now only sends pages that haven't been detected. It used to send pages whose text had changed too, and every page after the provider, model or prompt was changed. Use **Re-detect, keep chosen** to send every page again.
-
+- Added a **Skip Scout When Saving Detections** setting, off by default, which stops [Scout](https://plugins.craftcms.com/scout) queueing an indexing job for each detected page. Scout's `sync` setting is switched off only for the plugin's own save, in the process making it, and put back straight after, even if the save fails, so pages editors save and other queue workers keep syncing. It has no effect without Scout, or if its `sync` setting is already off.
 - Changed **Detect missing** to only queue pages that haven't been detected, with neither a language nor a hash, so the queue's count is the number of pages it will send. It used to queue every page, then skip the ones already detected, so a site with 351 pages, 67 of them detected, showed 351 in the queue and sent 284.
 - Changed **Detect missing** to no longer fetch pages that have been detected. It used to fetch each one to compare its text with the saved hash.
 - Changed the **Detect missing** button's tooltip, the utility's help text and the documentation to match.

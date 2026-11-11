@@ -29,10 +29,6 @@
     "craftcms/cms": "^5.0.0",
     "symfony/css-selector": "^6.0|^7.0"
   },
-  "suggest": {
-    "nystudio107/craft-seomatic": "Outputs the hreflang tags, which the plugin rewrites from each page’s Content Language",
-    "putyourlightson/craft-blitz": "Pages are detected once Blitz has refreshed their cache"
-  },
   "autoload": {
     "psr-4": {
       "heavymetalavo\\aihreflang\\": "src/"
