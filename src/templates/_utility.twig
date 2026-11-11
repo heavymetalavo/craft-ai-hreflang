@@ -152,7 +152,7 @@
             <li>{{ 'Pages with fewer than {count, number} words aren’t sent, and keep their site’s own hreflang, as there isn’t enough text to tell their language reliably.'|t('ai-hreflang', { count: minimumWords }) }}</li>
             <li>{{ 'The first {count, number} characters are sent, with the whitespace collapsed, and the [prompt]({url}) asks for the language most of the text is written in. Language detection needs little text, and less text costs less. Changes after those characters don’t make a page count as changed.'|t('ai-hreflang', { count: maxCharacters, url: cpUrl('settings/plugins/ai-hreflang') })|md(inlineOnly=true) }}</li>
             <li>{{ 'A hash of the text, the provider, the model and the prompt is saved with the language, so a page isn’t sent again until one of them changes.'|t('ai-hreflang') }}</li>
-            <li>{{ 'Pages whose language was chosen by an editor are skipped. If the AI provider can’t tell the language, the page keeps its site’s own hreflang.'|t('ai-hreflang') }}</li>
+            <li>{{ 'Pages whose language was chosen by an editor are skipped, unless you use **Re-detect all**. If the language couldn’t be detected, the page keeps its site’s own hreflang.'|t('ai-hreflang')|md(inlineOnly=true) }}</li>
         </ul>
     </div>
 </details>
