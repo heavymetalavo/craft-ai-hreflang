@@ -1,20 +1,27 @@
 {% import '_includes/forms' as forms %}
 
-{# Shows the page's language, detected or chosen, or blank when there's none. Searchable, as every language is listed.
-   The blank value needs allowEmptyOption. Only the mode is posted: the detection itself is kept on the server. #}
+{# Shows the page's language, detected or chosen, Automatic when it couldn't be detected, or blank before it has been
+   detected. Searchable, as every language is listed. Blank clears the field, Automatic goes back to automatic keeping
+   the detection, and a language is chosen by an editor (see ContentLanguage::normalizeValueFromRequest()). The blank
+   option needs allowEmptyOption. Craft's select_on_focus plugin is left out (extraPlugins: false), as it puts the last
+   value back when the field is left blank, which would undo choosing blank. Only the mode is posted: the detection
+   itself is kept on the server. The blank option's label is a non-breaking space, so its row is as tall as the others. #}
 {{ forms.selectize({
     id: id,
     name: name ~ '[mode]',
-    options: [{ label: '', value: '' }]|merge(languageOptions),
-    value: value.language ?? '',
-    selectizeOptions: { allowEmptyOption: true },
+    options: [
+        { label: "\xc2\xa0", value: '' },
+        { label: 'Automatic'|t('ai-hreflang'), value: automatic },
+    ]|merge(languageOptions),
+    value: mode,
+    selectizeOptions: { allowEmptyOption: true, extraPlugins: false },
 }) }}
 
 <p class="light smalltext">
     {% if not sitePublic %}
         {{ 'This site is disabled or has no base URL, so its pages aren’t public and aren’t detected.'|t('ai-hreflang') }}
     {% elseif not value.auto %}
-        {{ 'Chosen by an editor, so it isn’t detected when the page is saved. Choose the blank option to detect it again.'|t('ai-hreflang') }}
+        {{ 'Chosen by an editor, so it isn’t detected when the page is saved, or by the utility unless it re-detects all. Choose Automatic, or blank, to detect it again.'|t('ai-hreflang') }}
     {% elseif value.detectedAt and value.language %}
         {{ 'Detected as {language} {date}. Choosing another language overrides it.'|t('ai-hreflang', { language: value.languageName, date: value.detectedAt|datetime('short') }) }}
     {% elseif value.detectedAt %}

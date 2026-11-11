@@ -22,3 +22,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The Content Language field is found by its type, so its handle can be changed or overridden in a field layout
 - Uninstalling the plugin deletes the Content Language field it created
 - A warning on API keys saved in plain text in the project config, and a "Don't send" reasoning effort
+- Utility buttons Detect missing, Re-detect keep chosen, and Re-detect all, which also replaces languages editors chose after a confirmation
+- Saving a page where only its Content Language changed doesn't detect anything

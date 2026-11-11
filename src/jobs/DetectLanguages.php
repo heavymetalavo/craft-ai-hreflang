@@ -48,7 +48,7 @@ class DetectLanguages extends BaseDetectJob
      */
     protected function defaultDescription(): ?string
     {
-        return self::describe($this->siteId, $this->elementType, $this->force);
+        return self::describe($this->siteId, $this->elementType, $this->force, $this->includeChosen);
     }
 
     /**
@@ -57,15 +57,19 @@ class DetectLanguages extends BaseDetectJob
      *
      * @param class-string<ElementInterface> $elementType
      */
-    public static function describe(int $siteId, string $elementType, bool $force): string
+    public static function describe(int $siteId, string $elementType, bool $force, bool $includeChosen = false): string
     {
         $params = [
             'type' => $elementType::pluralLowerDisplayName(),
             'site' => Craft::$app->getSites()->getSiteById($siteId, true)?->getName() ?? $siteId,
         ];
 
+        if ($includeChosen) {
+            return Craft::t('ai-hreflang', 'Re-detecting the languages of all {type} on {site}, including chosen', $params);
+        }
+
         return $force
-            ? Craft::t('ai-hreflang', 'Re-detecting the languages of all {type} on {site}', $params)
+            ? Craft::t('ai-hreflang', 'Re-detecting the languages of {type} on {site}, keeping chosen', $params)
             : Craft::t('ai-hreflang', 'Detecting the languages of {type} on {site}', $params);
     }
 }

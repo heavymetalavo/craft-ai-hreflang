@@ -109,9 +109,17 @@ class ContentLanguage extends Field
     }
 
     /**
-     * The input posts `mode`: blank for automatic, or a language. Automatic, or the detected language submitted
-     * unchanged, keeps the current detection. Blank after a chosen language goes back to automatic, so the page is
-     * detected again, and any other language is chosen by an editor.
+     * The value the input posts for Automatic. Blank (`''`) clears the field.
+     */
+    public const MODE_AUTOMATIC = 'auto';
+
+    /**
+     * The input posts `mode`, one of:
+     *
+     * - blank: clears the field, so the page counts as not detected yet and is detected again
+     * - `auto` (MODE_AUTOMATIC): automatic, keeping the current detection, or after a chosen language, going back to
+     *   automatic so the page is detected again
+     * - a language: chosen by an editor, unless it's the detected language submitted unchanged, which stays detected
      *
      * @inheritdoc
      */
@@ -124,12 +132,17 @@ class ContentLanguage extends Field
         $mode = (string)$value['mode'];
         $current = $element ? $this->currentValue($element) : null;
 
-        if ($current !== null && $current->auto && ($mode === '' || $mode === $current->language)) {
-            return $current;
+        if ($mode === '') {
+            return new ContentLanguageData();
         }
 
-        if ($mode === '') {
-            return new ContentLanguageData(['auto' => true]);
+        if ($mode === self::MODE_AUTOMATIC) {
+            return $current !== null && $current->auto ? $current : new ContentLanguageData();
+        }
+
+        // The detected language submitted unchanged stays detected, so it isn't sent again
+        if ($current !== null && $current->auto && $mode === $current->language) {
+            return $current;
         }
 
         return new ContentLanguageData([
@@ -139,9 +152,23 @@ class ContentLanguage extends Field
     }
 
     /**
+     * What the input shows for a value: its language, Automatic when it was detected without one (it couldn't be
+     * detected, or was too short), or blank when it hasn't been detected.
+     */
+    public static function inputMode(ContentLanguageData $value): string
+    {
+        if ($value->language !== null) {
+            return $value->language;
+        }
+
+        return $value->auto && $value->hash !== null ? self::MODE_AUTOMATIC : '';
+    }
+
+    /**
      * Applying a draft would copy the detection the draft was created with onto the page, on every site, as Craft
      * doesn't merge detections into drafts (they're saved as resaves, which aren't tracked). The page's current
-     * detection is kept instead, unless the draft chose a language.
+     * detection is kept instead, unless the draft changed the field on that site, such as an editor choosing a
+     * language, Automatic or blank, which is kept. `duplicateOf` is the draft's copy on the site being saved.
      *
      * @inheritdoc
      */
@@ -150,8 +177,9 @@ class ContentLanguage extends Field
         if ($element->updatingFromDerivative && !$isNew && $element->id) {
             /** @var ContentLanguageData $value */
             $value = $element->getFieldValue($this->handle);
+            $draftChangedIt = $element->duplicateOf?->isFieldModified($this->handle) ?? false;
 
-            if ($value->auto) {
+            if ($value->auto && !$draftChangedIt) {
                 $page = $element::find()->id($element->id)->siteId($element->siteId)->status(null)->one();
                 $pageValue = $page ? AiHreflang::getInstance()->detector->getValue($page) : null;
 
@@ -210,6 +238,8 @@ class ContentLanguage extends Field
             'id' => $this->getInputId(),
             'name' => $this->handle,
             'value' => $value,
+            'mode' => self::inputMode($value),
+            'automatic' => self::MODE_AUTOMATIC,
             'languageOptions' => $this->languageOptions($value, $site),
             'hreflang' => $alternate['hreflang'] ?? $plugin->hreflang->getHreflang($site, $value->language),
             'clash' => $alternate['clash'] ?? null,

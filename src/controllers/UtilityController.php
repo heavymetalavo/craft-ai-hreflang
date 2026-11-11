@@ -34,6 +34,7 @@ class UtilityController extends Controller
      * Posted params:
      * - `siteId`: the site, or blank for all sites
      * - `force`: whether to detect pages whose text hasn't changed since they were last detected
+     * - `includeChosen`: whether to replace languages editors chose too (implies `force`)
      */
     public function actionDetect(): ?Response
     {
@@ -47,7 +48,8 @@ class UtilityController extends Controller
         $siteId = $this->request->getBodyParam('siteId');
         $sites = Craft::$app->getSites();
         $siteIds = $siteId ? [(int)$siteId] : $sites->getAllSiteIds(false);
-        $force = (bool)$this->request->getBodyParam('force');
+        $includeChosen = (bool)$this->request->getBodyParam('includeChosen');
+        $force = $includeChosen || $this->request->getBodyParam('force');
 
         foreach ($siteIds as $id) {
             if (!$sites->getSiteById($id)?->getEnabled()) {
@@ -63,14 +65,14 @@ class UtilityController extends Controller
             foreach (array_keys(AiHreflang::getInstance()->detector->getElementTypes()) as $elementType) {
                 // A job for the same pages that's still waiting or running would send them all again. Its later
                 // batches add "(batch 2 of 3)" to the description.
-                $description = DetectLanguages::describe($id, $elementType, $force);
+                $description = DetectLanguages::describe($id, $elementType, $force, $includeChosen);
                 foreach ($pending as $pendingDescription) {
                     if ($pendingDescription === $description || str_starts_with($pendingDescription, "$description (")) {
                         continue 2;
                     }
                 }
 
-                QueueHelper::push(new DetectLanguages(['siteId' => $id, 'elementType' => $elementType, 'force' => $force]), $priority);
+                QueueHelper::push(new DetectLanguages(['siteId' => $id, 'elementType' => $elementType, 'force' => $force, 'includeChosen' => $includeChosen]), $priority);
                 $queued++;
             }
         }

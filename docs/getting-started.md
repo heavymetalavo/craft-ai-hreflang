@@ -48,9 +48,11 @@ Add the field to the field layout of each entry type, category group or other el
 the top of an **SEO** tab. Only elements with the field and a URL are detected. Assets, tags, users, addresses and
 globals have no pages, so they can't be, and neither can entries in sections without URLs.
 
-The field shows the page's language on the site being edited: the detected language, or blank before it has been
-detected. Editors can choose another language from the searchable list, which then isn't detected again. Choosing the
-blank option detects it again the next time the page is saved. Only the choice is saved from the edit form: the
+The field shows the page's language on the site being edited: the detected or chosen language, **Automatic** when its
+language couldn't be detected, or blank before it has been detected. Editors can choose another language from the
+searchable list, which then isn't detected again. **Automatic** goes back to automatic, keeping the page's detection,
+and after a chosen language, the page is detected again the next time it's saved. The blank option clears the field,
+so the page counts as not detected yet and is detected again. Only the choice is saved from the edit form: the
 detection itself is only ever written by detection, so a form or draft opened before a detection can't put an older
 one back.
 
@@ -92,7 +94,10 @@ shows each site's coverage (detected pages out of all its live pages with the fi
 its pages use, with buttons to detect them for one site or all sites:
 
 - **Detect missing** sends only pages that haven't been detected or whose text has changed.
-- **Re-detect all** sends every page again.
+- **Re-detect, keep chosen** sends every page again, except pages whose language an editor chose.
+- **Re-detect all** sends every page, and replaces the languages editors chose, putting those pages back to automatic.
+  It asks first, saying how many chosen pages it will change. Pages that can't be fetched, such as disabled ones, keep
+  their chosen language.
 
 Below, a paginated table lists the pages that are in another language on at least one site, with the hreflang each
 site gives them. Using the utility needs its permission.

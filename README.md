@@ -43,7 +43,7 @@ language it's actually in. Translated pages keep their site's hreflang, and nobo
 - **Automatic, one click, or in bulk.** On save, from an entry's or category's action menu, or for a whole site from
   the utility. Everything runs through Craft's queue.
 - **Editors stay in control.** Any page's language can be chosen from a searchable list of every language, and a
-  chosen language is never overwritten.
+  chosen language is kept by every save and re-detection, unless an admin chooses **Re-detect all**.
 - **SEOmatic's hreflang tags, fixed.** Alternate links are rewritten for every site, in your sites' own format, such as
   `en-GB`, or as the language alone, such as `en`.
 - **No duplicate hreflang values.** Two URLs can't share an hreflang, so an untranslated page that would get the same

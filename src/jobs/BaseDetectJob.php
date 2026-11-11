@@ -28,6 +28,11 @@ abstract class BaseDetectJob extends BaseBatchedJob
     public bool $force = false;
 
     /**
+     * Whether to replace languages editors chose, putting those pages back to automatic.
+     */
+    public bool $includeChosen = false;
+
+    /**
      * How many pages in a row have failed, kept between batches.
      */
     public int $failuresInARow = 0;
@@ -51,7 +56,7 @@ abstract class BaseDetectJob extends BaseBatchedJob
         }
 
         try {
-            AiHreflang::getInstance()->detector->detect($element, $this->force);
+            AiHreflang::getInstance()->detector->detect($element, $this->force, $this->includeChosen);
             $this->failuresInARow = 0;
         } catch (ConfigurationException $e) {
             throw $e;

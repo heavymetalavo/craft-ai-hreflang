@@ -66,17 +66,44 @@
     {%- endif -%}
 {% endmacro %}
 
-{% macro detectButtons(siteId, disabled) %}
+{# Detect missing (the usual action, so primary), Re-detect keeping the languages editors chose, and Re-detect all,
+   which replaces those too, so it has Craft's caution style and asks first, saying how many pages it changes. #}
+{% macro detectButtons(siteId, disabled, chosen) %}
+    {% set actions = [
+        {
+            label: 'Detect missing'|t('ai-hreflang'),
+            title: 'Detects pages that haven’t been, and pages whose text has changed since.'|t('ai-hreflang'),
+            params: {},
+            class: 'submit',
+        },
+        {
+            label: 'Re-detect, keep chosen'|t('ai-hreflang'),
+            title: 'Sends every page again, except pages whose language an editor chose.'|t('ai-hreflang'),
+            params: { force: 1 },
+            class: '',
+        },
+        {
+            label: 'Re-detect all'|t('ai-hreflang'),
+            title: 'Sends every page, and replaces the languages editors chose, putting those pages back to automatic.'|t('ai-hreflang'),
+            params: { includeChosen: 1 },
+            class: 'caution',
+            confirm: chosen
+            ? '{count, plural, =1{One page has a language an editor chose. Re-detect all replaces it with the detected language, and puts the page back to automatic.} other{# pages have a language an editor chose. Re-detect all replaces them with the detected languages, and puts the pages back to automatic.}} Continue?'|t('ai-hreflang', { count: chosen })
+            : null },
+    ] %}
     <div class="buttons aih-buttons">
-        {% for force in [false, true] %}
-            <form method="post" accept-charset="UTF-8" onsubmit="this.querySelector('button').disabled = true">
+        {% for action in actions %}
+            <form method="post" accept-charset="UTF-8"
+                  onsubmit="{% if action.confirm ?? null %}if (!confirm('{{ action.confirm|e('js') }}')) return false; {% endif %}this.querySelector('button').disabled = true">
                 {{ csrfInput() }}
                 {{ actionInput('ai-hreflang/utility/detect') }}
                 {{ redirectInput('utilities/ai-hreflang') }}
                 {{ siteId ? hiddenInput('siteId', siteId) }}
-                {{ force ? hiddenInput('force', 1) }}
-                <button type="submit" class="btn small submit" {% if disabled %}disabled{% endif %}>
-                    {{ force ? 'Re-detect all'|t('ai-hreflang') : 'Detect missing'|t('ai-hreflang') }}
+                {% for name, value in action.params %}
+                    {{ hiddenInput(name, value) }}
+                {% endfor %}
+                <button type="submit" class="btn small {{ action.class }}" title="{{ action.title }}" {% if disabled %}disabled{% endif %}>
+                    {{ action.label }}
                 </button>
             </form>
         {% endfor %}
@@ -133,7 +160,7 @@
 <h2>{{ 'Coverage'|t('ai-hreflang') }}</h2>
 
 <p class="light">
-    {{ '**Detect missing** detects pages that haven’t been, and pages whose text has changed since. **Re-detect all** sends every page again. Pages whose language was chosen by an editor are skipped. Pages are detected in the queue.'|t('ai-hreflang')|md(inlineOnly=true) }}
+    {{ '**Detect missing** detects pages that haven’t been, and pages whose text has changed since. **Re-detect, keep chosen** sends every page again, except pages whose language an editor chose. **Re-detect all** sends every page, and replaces the languages editors chose, putting those pages back to automatic. Pages are detected in the queue.'|t('ai-hreflang')|md(inlineOnly=true) }}
 </p>
 
 {% set totals = {
@@ -149,7 +176,7 @@
         <div class="light smalltext">{{ '{count, plural, =1{One page} other{# pages}} couldn’t be detected, so {count, plural, =1{it keeps} other{they keep}} the site’s hreflang.'|t('ai-hreflang', { count: row.undetermined }) }}</div>
     {% endif %}
     {% if row.chosen %}
-        <div class="light smalltext">{{ '{count, plural, =1{One page was} other{# pages were}} chosen by an editor.'|t('ai-hreflang', { count: row.chosen }) }}</div>
+        <div class="light smalltext">{{ '{count, plural, =1{One page has a language chosen by an editor, which is kept unless you use Re-detect all.} other{# pages have a language chosen by an editor, which are kept unless you use Re-detect all.}}'|t('ai-hreflang', { count: row.chosen }) }}</div>
     {% endif %}
     {% if row.clashes %}
         <div class="smalltext warning">{{ '{count, plural, =1{One page clashes} other{# pages clash}} with another site’s hreflang, so {count, plural, =1{it keeps} other{they keep}} the site’s own.'|t('ai-hreflang', { count: row.clashes }) }}</div>
@@ -181,7 +208,7 @@
                     }, ownLabel, totals.total - totals.detected, {}, true) }}
                     {{ _self.notes(totals) }}
                 </td>
-                <td>{{ _self.detectButtons(null, configurationError) }}</td>
+                <td>{{ _self.detectButtons(null, configurationError, totals.chosen) }}</td>
             </tr>
             {% for row in stats %}
                 <tr>
@@ -195,7 +222,7 @@
                         {{ _self.hreflangBar(row.hreflangs, row.siteHreflang, row.total - row.detected, languageColors) }}
                         {{ _self.notes(row) }}
                     </td>
-                    <td>{{ _self.detectButtons(row.site.id, configurationError) }}</td>
+                    <td>{{ _self.detectButtons(row.site.id, configurationError, row.chosen) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

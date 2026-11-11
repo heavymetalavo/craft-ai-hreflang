@@ -79,6 +79,10 @@ class Detector extends Component
      * worker's request doesn't end. They have the `queuePriority` setting, so they run after jobs that clear page
      * caches. With Blitz refreshing its cache, nothing is queued here: handleBlitzRefresh() queues the pages Blitz
      * refreshes instead.
+     *
+     * A save that only changed the Content Language field, such as an editor choosing a page's language, can't have
+     * changed any page's text, so nothing is queued, and the Blitz refresh it causes is skipped too. Going back to
+     * automatic is the exception, as that site's page then needs detecting.
      */
     public function handleElementSave(ElementInterface $element): void
     {
@@ -90,9 +94,16 @@ class Detector extends Component
             || $element->getIsDraft()
             || $element->getIsRevision()
             || !$this->hasField($element)
-            || $this->usesBlitz()
-            || AiHreflang::getInstance()->ai->getConfigurationError() !== null
         ) {
+            return;
+        }
+
+        if ($this->onlyContentLanguageChanged($element)) {
+            $this->markJustSaved($element);
+            return;
+        }
+
+        if ($this->usesBlitz() || AiHreflang::getInstance()->ai->getConfigurationError() !== null) {
             return;
         }
 
@@ -168,10 +179,10 @@ class Detector extends Component
     }
 
     /**
-     * Whether an element's last change was this plugin saving a detection, on any of its sites, which makes Blitz
-     * refresh its pages on every site. None of their text has changed, so they needn't be fetched again. It only holds
-     * while nothing else has saved the element since, which would change its `dateUpdated`, and until the job for
-     * that refresh calls forgetJustSaved().
+     * Whether an element's last change was this plugin saving a detection, on any of its sites, or a save that only
+     * changed its Content Language, either of which makes Blitz refresh its pages on every site. None of their text
+     * has changed, so they needn't be fetched again. It only holds while nothing else has saved the element since,
+     * which would change its `dateUpdated`, and until the job for that refresh calls forgetJustSaved().
      */
     public function wasJustSaved(ElementInterface $element): bool
     {
@@ -187,6 +198,16 @@ class Detector extends Component
     public function forgetJustSaved(int $elementId): void
     {
         Craft::$app->getCache()->delete($this->justSavedKey($elementId));
+    }
+
+    /**
+     * Remembers that an element was just saved without changing any page's text.
+     *
+     * @see wasJustSaved()
+     */
+    private function markJustSaved(ElementInterface $element): void
+    {
+        Craft::$app->getCache()->set($this->justSavedKey($element->id), $element->dateUpdated?->getTimestamp(), self::JUST_SAVED_DURATION);
     }
 
     private function justSavedKey(int $elementId): string
@@ -209,14 +230,57 @@ class Detector extends Component
     }
 
     /**
-     * IDs of the sites whose copy of an element a save changed, from Craft's change tracking: for a draft being
-     * applied, the changes it made on each site, otherwise the changes recorded since the save began. Null when that
-     * can't be told: a new element or one new to its site, an element type that doesn't track changes, or a change to
-     * nested entries (Matrix and the like), which are saved on their sites by their own rules.
+     * IDs of the sites whose copy of an element a save changed. Null when that can't be told: see getChanges(), and
+     * a change to nested entries (Matrix and the like), which are saved on their sites by their own rules.
      *
      * @return int[]|null
      */
     private function getChangedSiteIds(ElementInterface $element): ?array
+    {
+        $changes = $this->getChanges($element);
+
+        if ($changes === null) {
+            return null;
+        }
+
+        foreach ($changes['fields'] as $row) {
+            if (Craft::$app->getFields()->getFieldById($row['fieldId']) instanceof ElementContainerFieldInterface) {
+                return null;
+            }
+        }
+
+        return array_values(array_unique([...array_column($changes['fields'], 'siteId'), ...$changes['attributeSiteIds']]));
+    }
+
+    /**
+     * Whether a save only changed an element's Content Language field, on sites that don't need detecting: an editor
+     * chose a language, rather than going back to automatic.
+     */
+    private function onlyContentLanguageChanged(ElementInterface $element): bool
+    {
+        $changes = $this->getChanges($element);
+
+        if ($changes === null || $changes['attributeSiteIds'] || !$changes['fields']) {
+            return false;
+        }
+
+        foreach ($changes['fields'] as $row) {
+            if (!Craft::$app->getFields()->getFieldById($row['fieldId']) instanceof ContentLanguage) {
+                return false;
+            }
+        }
+
+        return !array_intersect(array_column($changes['fields'], 'siteId'), $this->getUndetectedSiteIds($element));
+    }
+
+    /**
+     * The changes a save made: for a draft being applied, the changes it made on each site, otherwise the changes
+     * recorded since the save began, and the site being saved's own. Null when they can't be told: a new element or one new to its site,
+     * or an element type that doesn't track changes.
+     *
+     * @return array{fields: array<int, array{siteId: int, fieldId: int}>, attributeSiteIds: int[]}|null
+     */
+    private function getChanges(ElementInterface $element): ?array
     {
         if ($element->firstSave || $element->isNewForSite || !$element::trackChanges()) {
             return null;
@@ -227,17 +291,29 @@ class Detector extends Component
             ? ['elementId' => $draft->id]
             : ['and', ['elementId' => $element->id], ['>=', 'dateUpdated', Db::prepareDateForDb($element->dateUpdated)]];
 
-        $fields = (new Query())->select(['siteId', 'fieldId'])->from(Table::CHANGEDFIELDS)->where($condition)->all();
+        $fields = array_map(
+            fn(array $row) => ['siteId' => (int)$row['siteId'], 'fieldId' => (int)$row['fieldId']],
+            (new Query())->select(['siteId', 'fieldId'])->from(Table::CHANGEDFIELDS)->where($condition)->all(),
+        );
+        $attributeSiteIds = array_map('intval', (new Query())->select(['siteId'])->from(Table::CHANGEDATTRIBUTES)->where($condition)->column());
 
-        foreach ($fields as $row) {
-            if (Craft::$app->getFields()->getFieldById($row['fieldId']) instanceof ElementContainerFieldInterface) {
-                return null;
+        // Craft records the site being saved's own changes only after this runs (the other sites' are recorded as they
+        // propagate), so they're read from the element. A draft's changes are all recorded already.
+        if ($draft === null) {
+            foreach ($element->getDirtyFields() as $handle) {
+                $field = $element->getFieldLayout()?->getFieldByHandle($handle);
+
+                if ($field !== null) {
+                    $fields[] = ['siteId' => $element->siteId, 'fieldId' => $field->id];
+                }
+            }
+
+            if ($element->getDirtyAttributes()) {
+                $attributeSiteIds[] = $element->siteId;
             }
         }
 
-        $attributeSiteIds = (new Query())->select(['siteId'])->from(Table::CHANGEDATTRIBUTES)->where($condition)->column();
-
-        return array_map('intval', array_unique([...array_column($fields, 'siteId'), ...$attributeSiteIds]));
+        return ['fields' => $fields, 'attributeSiteIds' => array_values(array_unique($attributeSiteIds))];
     }
 
     /**
@@ -326,17 +402,19 @@ JS, [
 
     /**
      * Detects the language of a page on its site and saves it, unless an editor chose the language or the text hasn't
-     * changed since it was last detected.
+     * changed since it was last detected. With `$includeChosen`, a language an editor chose is replaced too, and the
+     * page goes back to automatic, unless its page can't be fetched, which keeps the choice.
      *
      * The saved hash covers the text and what the detection depends on (the provider, model and prompt), so changing
      * any of them makes the page count as changed. Only the first `maxCharacters` characters of the text are read, so
      * changes after them don't.
      *
      * @param bool $force Detect even if the text hasn't changed
+     * @param bool $includeChosen Replace a language an editor chose
      * @return string One of the RESULT_* constants
      * @throws Throwable If the page can't be fetched, the AI provider fails or the element can't be saved
      */
-    public function detect(ElementInterface $element, bool $force = false): string
+    public function detect(ElementInterface $element, bool $force = false, bool $includeChosen = false): string
     {
         $plugin = AiHreflang::getInstance();
         $value = $this->getValue($element);
@@ -345,7 +423,7 @@ JS, [
             return self::RESULT_NO_PAGE;
         }
 
-        if (!$value->auto) {
+        if (!$value->auto && !$includeChosen) {
             return self::RESULT_CHOSEN;
         }
 
@@ -353,6 +431,11 @@ JS, [
 
         if ($text === null) {
             return self::RESULT_NO_PAGE;
+        }
+
+        // A chosen language being replaced counts as never detected, so the page is sent and goes back to automatic
+        if (!$value->auto) {
+            $value = new ContentLanguageData();
         }
 
         $hash = sha1($plugin->ai->getFingerprint() . "\n" . $text);
@@ -404,7 +487,7 @@ JS, [
             throw new \Exception(sprintf('%s %d couldn’t be saved on site %d.', $element::displayName(), $element->id, $element->siteId));
         }
 
-        Craft::$app->getCache()->set($this->justSavedKey($element->id), $element->dateUpdated?->getTimestamp(), self::JUST_SAVED_DURATION);
+        $this->markJustSaved($element);
     }
 
     /**
