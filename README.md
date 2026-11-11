@@ -69,32 +69,43 @@ composer require heavymetalavo/craft-ai-hreflang
    and category groups with public pages.
 3. Detect your existing pages from **Utilities → AI Hreflang → Detect missing**. New and changed pages are
    detected when they're saved.
+4. Update your templates to output the new hreflang values. Normally, output the alternate links in your layout's
+   `<head>` from `craft.aiHreflang.alternates()`:
 
-### Outputting the hreflang tags
+   ```twig
+   {% set alternates = craft.aiHreflang.alternates(entry) %}
+   {% for alternate in alternates %}
+     <link rel="alternate" hreflang="{{ alternate.hreflang }}" href="{{ alternate.url }}">
+   {% endfor %}
+   {# x-default, for visitors whose language none of the alternates match, here the primary site's page #}
+   {% for alternate in alternates|filter(a => a.site.primary) %}
+     <link rel="alternate" hreflang="x-default" href="{{ alternate.url }}">
+   {% endfor %}
+   ```
 
-**With SEOmatic**, there's nothing to add. Its hreflang tags are rewritten for every site automatically, and an editor
-can override any page by choosing its language in the Content Language field.
+   With SEOmatic, its hreflang tags are rewritten for you, so there's nothing to add. To overwrite SEOmatic's
+   alternate links in your template instead, before its tags are output:
 
-**Without SEOmatic**, output the alternate links in your layout's `<head>`. `craft.aiHreflang.alternates()` gives a
-page's live copy on each site, with its URL and hreflang, clashes already resolved. It works for entries, categories
-and any other element with pages:
+   ```twig
+   {% set alternates = craft.aiHreflang.alternates(entry) %}
+   {% set link = seomatic.link.get('alternate') %}
+   {% if link and alternates %}
+     {% set primary = alternates|filter(a => a.site.primary)|first %}
+     {% do link
+       .hreflang(alternates|column('hreflang')|merge(primary ? ['x-default'] : []))
+       .href(alternates|column('url')|merge(primary ? [primary.url] : [])) %}
+   {% endif %}
+   ```
 
-```twig
-{% set alternates = craft.aiHreflang.alternates(entry) %}
-{% for alternate in alternates %}
-  <link rel="alternate" hreflang="{{ alternate.hreflang }}" href="{{ alternate.url }}">
-{% endfor %}
-{# x-default, for visitors whose language none of the alternates match, here the primary site's page #}
-{% for alternate in alternates|filter(a => a.site.primary) %}
-  <link rel="alternate" hreflang="x-default" href="{{ alternate.url }}">
-{% endfor %}
-```
+### The hreflang values
 
-Each alternate's `hreflang` is the page's language with its site's region, such as `en-FR`, or the site's own
-hreflang when the page hasn't been detected yet, is in the site's language, or would clash with another copy. Each also
-has `site`, `language` (the Content Language, or null) and `clash` (the hreflang it would have had). The field's
-value is also available on its own: `entry.contentLanguage.language` is the language code, such as `en`, or null when
-it hasn't been detected.
+`craft.aiHreflang.alternates()` gives a page's live copy on each site, with its absolute URL and its hreflang,
+clashes already resolved. It works for entries, categories and any other element with pages. Each alternate's
+`hreflang` is the page's language with its site's region, such as `en-FR`, or the site's own hreflang when the page
+hasn't been detected yet, is in the site's language, or would clash with another copy. Each also has `site`,
+`language` (the Content Language, or null) and `clash` (the hreflang it would have had). An editor can override any
+page by choosing its language in the Content Language field. The field's value is also available on its own:
+`entry.contentLanguage.language` is the language code, such as `en`, or null when it hasn't been detected.
 
 ### Using Blitz
 

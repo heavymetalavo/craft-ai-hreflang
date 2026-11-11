@@ -85,7 +85,7 @@ so text on a page, such as a visitor's comment, can't easily choose the page's l
 ## 🚧 Limitations
 
 - Without SEOmatic, languages are still detected, but no hreflang tags are output for you: use
-  [`craft.aiHreflang.alternates()`](../README.md#outputting-the-hreflang-tags) in your templates.
+  [`craft.aiHreflang.alternates()`](../README.md#-quick-start) in your templates.
 - SEOmatic's sitemaps still list each alternate with its site's language, as SEOmatic offers no way to change them.
 - The `<html lang>` attribute isn't changed.
 - Without Blitz, a page's text can change without its element being saved, such as when a global or related entry it

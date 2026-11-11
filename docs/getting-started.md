@@ -9,15 +9,17 @@ How to install AI Hreflang, set it up and detect your first pages. For the overv
 
 [Install the plugin](#-installation), then add the **Content Language** field it creates to the field layouts of
 your entry types (and category groups) with public pages. In **Settings → AI Hreflang**, review the settings and add
-your AI provider, API key and model. Finally, open **Utilities → AI Hreflang** and click **Detect missing** to detect
-your existing pages. New and changed pages are detected when they're saved.
+your AI provider, API key and model. Open **Utilities → AI Hreflang** and click **Detect missing** to detect your
+existing pages; new and changed pages are detected when they're saved. Finally,
+[update your templates](../README.md#-quick-start) to output the new hreflang values, unless SEOmatic outputs them
+for you.
 
 ## 📋 Requirements
 
 - Craft CMS 5.8 or later
 - PHP 8.2 or later
 - SEOmatic is recommended, as it outputs the hreflang tags. Without it, output them with
-  [`craft.aiHreflang.alternates()`](../README.md#outputting-the-hreflang-tags)
+  [`craft.aiHreflang.alternates()`](../README.md#-quick-start)
 - An API key for Anthropic, OpenAI, Langdock or OpenRouter, see [Settings](settings.md#-ai-providers)
 
 ## 📥 Installation
