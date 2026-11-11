@@ -16,7 +16,7 @@ for you.
 
 ## 📋 Requirements
 
-- Craft CMS 5.8 or later
+- Craft CMS 5.0 or later
 - PHP 8.2 or later
 - SEOmatic is recommended, as it outputs the hreflang tags. Without it, output them with
   [`craft.aiHreflang.alternates()`](../README.md#-quick-start)

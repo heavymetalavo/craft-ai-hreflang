@@ -56,7 +56,7 @@ language it's actually in. Translated pages keep their site's hreflang, and nobo
 
 ## 🚀 Quick start
 
-Craft CMS 5.8 or later, PHP 8.2 or later, and an API key for Anthropic, OpenAI, Langdock or OpenRouter. SEOmatic is
+Craft CMS 5.0 or later, PHP 8.2 or later, and an API key for Anthropic, OpenAI, Langdock or OpenRouter. SEOmatic is
 recommended, as it outputs the hreflang tags for you.
 
 ```sh
