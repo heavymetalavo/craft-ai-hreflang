@@ -48,8 +48,8 @@ class Detector extends Component
     public const MINIMUM_WORDS = 10;
 
     /**
-     * How long, in seconds, a page's own detection save is remembered, so the Blitz refresh it causes doesn't detect
-     * the page again.
+     * How long, in seconds, the plugin's own detection save is remembered, so the Blitz refresh it causes doesn't
+     * detect the element's pages again.
      *
      * @see wasJustSaved()
      */
@@ -168,28 +168,30 @@ class Detector extends Component
     }
 
     /**
-     * Whether a page's last change was this plugin saving its detection, which makes Blitz refresh it. Its text
-     * hasn't changed since it was detected, so it needn't be fetched again. Only the first refresh after the save is
-     * skipped, and only while nothing else has saved the page since, which would change its `dateUpdated`.
+     * Whether an element's last change was this plugin saving a detection, on any of its sites, which makes Blitz
+     * refresh its pages on every site. None of their text has changed, so they needn't be fetched again. It only holds
+     * while nothing else has saved the element since, which would change its `dateUpdated`, and until the job for
+     * that refresh calls forgetJustSaved().
      */
     public function wasJustSaved(ElementInterface $element): bool
     {
-        $cache = Craft::$app->getCache();
-        $key = $this->justSavedKey($element);
-        $dateUpdated = $cache->get($key);
+        $dateUpdated = Craft::$app->getCache()->get($this->justSavedKey($element->id));
 
-        if ($dateUpdated === false) {
-            return false;
-        }
-
-        $cache->delete($key);
-
-        return $dateUpdated === $element->dateUpdated?->getTimestamp();
+        return $dateUpdated !== false && $dateUpdated === $element->dateUpdated?->getTimestamp();
     }
 
-    private function justSavedKey(ElementInterface $element): string
+    /**
+     * Forgets that the plugin just saved an element's detection, once the Blitz refresh it caused has been handled,
+     * so a later refresh for another reason, such as a related entry changing, detects its pages.
+     */
+    public function forgetJustSaved(int $elementId): void
     {
-        return sprintf('ai-hreflang:saved:%d:%d', $element->id, $element->siteId);
+        Craft::$app->getCache()->delete($this->justSavedKey($elementId));
+    }
+
+    private function justSavedKey(int $elementId): string
+    {
+        return sprintf('ai-hreflang:saved:%d', $elementId);
     }
 
     /**
@@ -402,7 +404,7 @@ JS, [
             throw new \Exception(sprintf('%s %d couldn’t be saved on site %d.', $element::displayName(), $element->id, $element->siteId));
         }
 
-        Craft::$app->getCache()->set($this->justSavedKey($element), $element->dateUpdated?->getTimestamp(), self::JUST_SAVED_DURATION);
+        Craft::$app->getCache()->set($this->justSavedKey($element->id), $element->dateUpdated?->getTimestamp(), self::JUST_SAVED_DURATION);
     }
 
     /**

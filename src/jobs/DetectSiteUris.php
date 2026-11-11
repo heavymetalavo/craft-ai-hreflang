@@ -9,8 +9,9 @@ use heavymetalavo\aihreflang\AiHreflang;
 
 /**
  * Detects the language of the pages Blitz refreshed, by their URIs. Each URI's element is found here rather than
- * during Blitz's refresh, which can list every page of a site. A page whose refresh was caused by the plugin saving
- * its own detection is skipped, as its text hasn't changed.
+ * during Blitz's refresh, which can list every page of a site. Blitz refreshes an element's pages on every site, so
+ * when the refresh was caused by the plugin saving a detection, on any site, all of the element's pages are skipped,
+ * as their text hasn't changed.
  *
  * @package heavymetalavo\aihreflang\jobs
  */
@@ -20,6 +21,14 @@ class DetectSiteUris extends BaseDetectJob
      * @var array<int, array{siteId: int, uri: string}>
      */
     public array $siteUris = [];
+
+    /**
+     * IDs of the elements skipped because the refresh was caused by the plugin saving their detection, kept between
+     * batches, and forgotten once the job ends.
+     *
+     * @var int[]
+     */
+    public array $justSavedIds = [];
 
     /**
      * @inheritdoc
@@ -51,11 +60,26 @@ class DetectSiteUris extends BaseDetectJob
         $detector = AiHreflang::getInstance()->detector;
         $element = Craft::$app->getElements()->getElementByUri($item['uri'], $item['siteId'], true);
 
-        if ($element === null || !$detector->hasField($element) || $detector->wasJustSaved($element)) {
+        if ($element === null || !$detector->hasField($element)) {
+            return null;
+        }
+
+        if ($detector->wasJustSaved($element)) {
+            $this->justSavedIds[] = $element->id;
             return null;
         }
 
         return $element;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    protected function after(): void
+    {
+        foreach (array_unique($this->justSavedIds) as $elementId) {
+            AiHreflang::getInstance()->detector->forgetJustSaved($elementId);
+        }
     }
 
     /**
