@@ -23,6 +23,15 @@ use Throwable;
 abstract class BaseDetectJob extends BaseBatchedJob
 {
     /**
+     * How many pages are detected in each batch, from the Batch Size setting when the job is created. Each page is
+     * fetched and sent to the AI provider, which is slow, so the default is smaller than Craft's 100. Later batches keep
+     * the size the first was queued with.
+     *
+     * @inheritdoc
+     */
+    public int $batchSize = 50;
+
+    /**
      * Whether to detect pages whose text hasn't changed since they were last detected.
      */
     public bool $force = false;
@@ -38,6 +47,16 @@ abstract class BaseDetectJob extends BaseBatchedJob
     public int $failuresInARow = 0;
 
     private const MAX_FAILURES_IN_A_ROW = 5;
+
+    /**
+     * @inheritdoc
+     */
+    public function init(): void
+    {
+        parent::init();
+
+        $this->batchSize = AiHreflang::getInstance()?->getSettings()->batchSize ?? $this->batchSize;
+    }
 
     /**
      * The page an item of the batch is, or null to skip it.

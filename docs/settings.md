@@ -18,6 +18,7 @@ After installation, configure the plugin at **Settings → Plugins → AI Hrefla
 | Skip Scout When Saving Detections | Off by default. With [Scout](https://plugins.craftcms.com/scout), stops it queueing an indexing job for each detected page, see [Scout](getting-started.md#-scout) |
 | Maximum Characters | How much of a page's text is sent (2,000 by default) |
 | Queue Priority | The priority of the plugin's queue jobs (2048 by default), higher than the jobs that clear page caches, see [Page caches](getting-started.md#-page-caches) |
+| Batch Size | How many pages each batch of a bulk detection detects (50 by default), lower it if batches time out |
 | Content Selector | The CSS selector of the element whose text is read, `main` by default, see [The page's content](#-the-pages-content) |
 | hreflang Format | Match each site's language setting (the default) or language only, see [hreflang](#-hreflang) |
 

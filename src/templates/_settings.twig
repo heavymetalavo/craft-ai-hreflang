@@ -276,6 +276,19 @@ document.getElementById({{ 'prompt-default'|namespaceInputId|json_encode|raw }})
 }) }}
 
 {{ forms.textField({
+    label: 'Batch Size'|t('ai-hreflang'),
+    instructions: 'How many pages each batch of a bulk detection, such as Detect missing, detects. Each page is fetched and sent to the AI provider, so a batch has to finish within the queue’s time limit for a job (300 seconds by default, Craft’s `ttr` setting), or it’s tried again. Lower this if batches time out on a slow site or provider. Jobs already queued keep their size.'|t('ai-hreflang'),
+    id: 'batchSize',
+    name: 'batchSize',
+    type: 'number',
+    min: 1,
+    max: 500,
+    size: 7,
+    value: settings.batchSize,
+    errors: settings.getErrors('batchSize'),
+}) }}
+
+{{ forms.textField({
     label: 'Content Selector'|t('ai-hreflang'),
     instructions: 'The CSS selector of the element whose text is read from each page, such as `main`, `#content` or `.page-body`. Pick the element that holds the page’s own content, without the menus, footer or cookie banner around it, which are in the site’s language. A page where nothing matches, or a blank selector, is read from its `<body>`, without its header and footer.'|t('ai-hreflang'),
     id: 'contentSelector',

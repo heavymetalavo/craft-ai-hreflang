@@ -1,5 +1,9 @@
 # Release Notes for AI Hreflang
 
+## 1.0.3 - 2026-11-11
+
+- Added a **Batch Size** setting, 50 by default, for how many pages each batch of a bulk detection detects. Craft's default is 100, which is too many pages to fetch and send to an AI provider within the queue's time limit on a slow site or provider. Jobs already queued keep their size.
+
 ## 1.0.2 - 2026-11-11
 
 - Added a **Skip Scout When Saving Detections** setting, off by default, which stops [Scout](https://plugins.craftcms.com/scout) queueing an indexing job for each detected page. Scout's `sync` setting is switched off only for the plugin's own save, in the process making it, and put back straight after, even if the save fails, so pages editors save and other queue workers keep syncing. It has no effect without Scout, or if its `sync` setting is already off.

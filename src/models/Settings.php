@@ -203,6 +203,16 @@ class Settings extends Model
     public int $queuePriority = 2048;
 
     /**
+     * How many pages each batch of a bulk detection job detects. Each page is fetched and sent to the AI provider, so
+     * a batch's time is the pages' times added up, and it has to stay under the queue's time limit for a job (`ttr`,
+     * 300 seconds by default). Smaller batches keep each job short, at the cost of more jobs. A job keeps the size it
+     * was queued with.
+     *
+     * @var int
+     */
+    public int $batchSize = 50;
+
+    /**
      * How hreflang values are written: `site` matches each site's language setting, keeping its region if it has
      * one, so English on a `fr-FR` site is `en-FR` and on a `fr` site is `en`, and `language` always drops the region,
      * so it is `en`.
@@ -227,6 +237,7 @@ class Settings extends Model
             [['detectOnSave', 'skipScoutSync'], 'boolean'],
             ['maxCharacters', 'integer', 'min' => 100, 'max' => 20000],
             ['queuePriority', 'integer', 'min' => 0],
+            ['batchSize', 'integer', 'min' => 1, 'max' => 500],
             ['contentSelector', 'trim'],
             ['contentSelector', 'validateSelector'],
             [['hreflangFormat'], 'validateOneOf', 'params' => ['allowed' => array_keys(self::HREFLANG_FORMATS), 'message' => 'Invalid hreflang Format configured.']],
