@@ -24,6 +24,14 @@ class DetectLanguages extends BaseDetectJob
     public string $elementType;
 
     /**
+     * The ID of the last page handled, kept between batches. Each batch runs the query again, and without `force` a
+     * page that was just detected no longer matches it, so counting pages by offset would skip as many pages as the
+     * earlier batches detected. Starting after this ID instead means no page is skipped, and a page that failed isn't
+     * tried again by the same job.
+     */
+    public int $lastId = 0;
+
+    /**
      * @inheritdoc
      */
     protected function loadData(): Batchable
@@ -32,9 +40,39 @@ class DetectLanguages extends BaseDetectJob
         // fetched or counted in the job's progress.
         $query = AiHreflang::getInstance()->detector
             ->pagesQuery($this->elementType, $this->siteId, !$this->force)
+            ->andWhere(['>', 'elements.id', $this->lastId])
             ->orderBy(['elements.id' => SORT_ASC]);
 
-        return new QueryBatcher($query);
+        // The pages handled so far no longer match the query, or are before `lastId`, so they're added to the count to
+        // keep the job's total, progress and end the same across batches.
+        return new class(new QueryBatcher($query), $this->itemOffset) implements Batchable {
+            public function __construct(private QueryBatcher $batcher, private int $handled)
+            {
+            }
+
+            public function count(): int
+            {
+                return $this->handled + $this->batcher->count();
+            }
+
+            public function getSlice(int $offset, int $limit): iterable
+            {
+                // The offset is how many pages were handled, which the query already leaves out
+                return $this->batcher->getSlice(0, $limit);
+            }
+        };
+    }
+
+    /**
+     * @inheritdoc
+     */
+    protected function processItem(mixed $item): void
+    {
+        try {
+            parent::processItem($item);
+        } finally {
+            $this->lastId = $item->id;
+        }
     }
 
     /**

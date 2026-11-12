@@ -1,5 +1,9 @@
 # Release Notes for AI Hreflang
 
+## 1.0.4 - 2026-11-12
+
+- Fixed **Detect missing** leaving pages undetected. Each batch counted its place in the list of undetected pages by offset, but the pages the earlier batches detected had dropped out of that list, so each batch skipped as many pages as were detected before it, and the job ended early with a large share of the pages still undetected. Batches now carry on after the last page handled.
+
 ## 1.0.3 - 2026-11-11
 
 - Added a **Batch Size** setting, 50 by default, for how many pages each batch of a bulk detection detects. Craft's default is 100, which is too many pages to fetch and send to an AI provider within the queue's time limit on a slow site or provider. Jobs already queued keep their size.
