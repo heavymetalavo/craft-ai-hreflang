@@ -59,7 +59,7 @@
                     <span class="aih-bar-key-item">
                         <span class="aih-swatch {{ segment.class }}"{% if segment.color %} style="background: {{ segment.color }};"{% endif %} aria-hidden="true"></span>
                         {% set share = segment.count / total * 100 %}
-                        {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} ({{ segment.count|number }} - {{ share > 0 and share < 1 ? '<1' : share|round|number }}%)
+                        {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} {{ share > 0 and share < 1 ? '<1' : share|round|number }}% ({{ segment.count|number }})
                     </span>
                 {%- endfor %}
             </div>
