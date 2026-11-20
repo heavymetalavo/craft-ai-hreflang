@@ -150,13 +150,18 @@
   transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
 }
 
-/* Moving from one segment to the next while it's showing glides rather than jumps */
+/* Moving to the next segment of a bar glides sideways. Its top isn't transitioned, as it only changes with the
+   tooltip's height, which the new text changes at once. */
 .aih-tooltip.aih-tooltip-visible.aih-tooltip-gliding {
-  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s, left 0.15s ease, top 0.15s ease;
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s, left 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aih-tooltip.aih-tooltip-gliding::after {
-  transition: left 0.15s ease;
+  transition: left 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.aih-tooltip.aih-tooltip-instant {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

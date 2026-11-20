@@ -2,11 +2,27 @@
    segment, as a tooltip inside the table would be clipped by its scroll area. */
 (function () {
   var tooltip = null;
+  var anchorBar = null;
+  var hideTimer = null;
 
-  function hide() {
+  function cancelHide() {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+
+  function hideNow() {
+    cancelHide();
+
     if (tooltip) {
       tooltip.classList.remove('aih-tooltip-visible', 'aih-tooltip-gliding');
     }
+  }
+
+  // Hiding waits a moment, so crossing the gap between two segments, or tabbing from one to the next, carries on
+  // from the same tooltip rather than hiding it and showing it again
+  function hide() {
+    cancelHide();
+    hideTimer = setTimeout(hideNow, 60);
   }
 
   function show(segment) {
@@ -16,14 +32,17 @@
       return;
     }
 
+    cancelHide();
+
     if (!tooltip) {
       tooltip = document.createElement('div');
       tooltip.className = 'aih-tooltip';
       document.body.appendChild(tooltip);
     }
 
-    // Moving between segments while it's showing glides to the next one, rather than fading in again
-    var showing = tooltip.classList.contains('aih-tooltip-visible');
+    // Moving to another segment of the same bar glides across to it, anywhere else it's revealed again
+    var bar = segment.parentNode;
+    var glide = tooltip.classList.contains('aih-tooltip-visible') && bar === anchorBar;
 
     tooltip.innerHTML = content.innerHTML;
 
@@ -41,19 +60,27 @@
       placement = 'bottom';
     }
 
-    // The glide is a transition on left and top, so it's switched on before they change
-    tooltip.classList.toggle('aih-tooltip-gliding', showing);
+    if (!glide) {
+      // Back to hidden at once, without a transition, so the reveal starts from the start
+      tooltip.classList.add('aih-tooltip-instant');
+      tooltip.classList.remove('aih-tooltip-visible', 'aih-tooltip-gliding');
+    }
+
     tooltip.dataset.placement = placement;
     // The caret stays on the segment's middle, but inside the tooltip's rounded corners
     tooltip.style.setProperty('--aih-caret', Math.max(12, Math.min(rect.left + rect.width / 2 - left, size.width - 12)) + 'px');
     tooltip.style.left = left + 'px';
     tooltip.style.top = top + 'px';
 
-    if (!showing) {
-      // Let it be laid out in its hidden state first, so the transition runs
+    if (glide) {
+      tooltip.classList.add('aih-tooltip-gliding');
+    } else {
       void tooltip.offsetWidth;
+      tooltip.classList.remove('aih-tooltip-instant');
       tooltip.classList.add('aih-tooltip-visible');
     }
+
+    anchorBar = bar;
   }
 
   function segmentOf(event) {
@@ -79,10 +106,10 @@
   });
 
   document.addEventListener('focusout', hide);
-  document.addEventListener('scroll', hide, true);
+  document.addEventListener('scroll', hideNow, true);
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
-      hide();
+      hideNow();
     }
   });
 })();
