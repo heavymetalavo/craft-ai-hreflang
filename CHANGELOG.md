@@ -1,5 +1,11 @@
 # Release Notes for AI Hreflang
 
+## Unreleased
+
+- Changed the utility's hreflang bars to show each segment's share of the site's pages beside its count, such as `en-FR (205, 56%)`. A share under 1% shows as `<1%`.
+- Changed the **All sites** bar's "Another language" label to "Other".
+- Changed the README, plugin store listing, utility and documentation to explain the problem as Semrush's Site Audit reports it, **Pages with hreflang language mismatch issues**, and added a "Semrush and other SEO audits" section to How it works.
+
 ## 1.0.4 - 2026-11-12
 
 - Fixed **Detect missing** leaving pages undetected. Each batch counted its place in the list of undetected pages by offset, but the pages the earlier batches detected had dropped out of that list, so each batch skipped as many pages as were detected before it, and the job ended early with a large share of the pages still undetected. Batches now carry on after the last page handled.

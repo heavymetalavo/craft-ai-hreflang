@@ -58,7 +58,8 @@
                 {%- for segment in segments %}
                     <span class="aih-bar-key-item">
                         <span class="aih-swatch {{ segment.class }}"{% if segment.color %} style="background: {{ segment.color }};"{% endif %} aria-hidden="true"></span>
-                        {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} ({{ segment.count|number }})
+                        {% set share = segment.count / total * 100 %}
+                        {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} ({{ segment.count|number }}, {{ share > 0 and share < 1 ? '<1' : share|round|number }}%)
                     </span>
                 {%- endfor %}
             </div>
@@ -128,7 +129,7 @@
 
 <div class="readable aih-intro">
     <p>
-        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`.'|t('ai-hreflang')|md(inlineOnly=true) }}
+        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`, so SEO audits such as Semrush’s don’t report it as an hreflang language mismatch.'|t('ai-hreflang')|md(inlineOnly=true) }}
     </p>
     <p>
         {{ 'Two copies of a page can’t share an hreflang. When a copy’s language would give it the same hreflang as another copy, such as an untranslated page on an `es-US` site next to the `en-US` site’s page, it keeps its site’s own hreflang, and the clash is shown below and in the page’s Content Language field.'|t('ai-hreflang')|md(inlineOnly=true) }}
@@ -204,7 +205,7 @@
                     {% set ownLabel = 'Site’s language'|t('ai-hreflang') %}
                     {{ _self.hreflangBar({
                         (ownLabel): ownLanguage,
-                        ('Another language'|t('ai-hreflang')): totals.detected - ownLanguage,
+                        ('Other'|t('ai-hreflang')): totals.detected - ownLanguage,
                     }, ownLabel, totals.total - totals.detected, {}, true) }}
                     {{ _self.notes(totals) }}
                 </td>

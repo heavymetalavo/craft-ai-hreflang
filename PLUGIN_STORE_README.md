@@ -17,8 +17,12 @@ its hreflang to match.
 
 Multi-site launches rarely translate everything at once. Until a page is translated, the French site shows the English
 copy, while SEOmatic tells search engines it's `fr-FR`. Google sees a French page in English, and French searchers get
-the wrong result. AI Hreflang finds those pages and announces them as `en-FR`, so each page is listed for the
-language it's actually in. Translated pages keep their site's hreflang, and nobody has to keep track by hand.
+the wrong result. SEO audits flag it too: Semrush's Site Audit reports these pages as
+[Pages with hreflang language mismatch issues](https://www.semrush.com/kb/542-site-audit-issues-list#mismatch), where the language in a page's hreflang
+doesn't match the language its text is written in.
+
+AI Hreflang finds those pages and announces them as `en-FR`, so each page is listed for the language it's actually in.
+Translated pages keep their site's hreflang, and nobody has to keep track by hand.
 
 ## ✨ What you get
 

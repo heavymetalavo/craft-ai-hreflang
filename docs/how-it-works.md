@@ -82,6 +82,26 @@ out too.
 The text is sent between `<page_text>` tags, and the default prompt tells the model to ignore any instructions in it,
 so text on a page, such as a visitor's comment, can't easily choose the page's language.
 
+## 🔎 Semrush and other SEO audits
+
+Semrush's Site Audit reports [Pages with hreflang language mismatch issues](https://www.semrush.com/kb/542-site-audit-issues-list#mismatch) (a notice, in its International SEO
+report) when the language in a page's hreflang doesn't match the page's language, which it works out from the page's
+text. On a multi-site Craft website that is usually a page still in English on a site whose hreflang is, say, `fr-FR`.
+It's the same problem this plugin fixes: a page detected as English is announced as `en-FR` instead, so its hreflang
+matches its text, which is what the check looks for.
+
+Some pages can still be reported:
+
+- Pages with fewer than 10 words aren't sent for detection, and a page whose language can't be told keeps its site's
+  own hreflang. Semrush says its check can also flag a page whose hreflang is right if the page is multilingual or has
+  too little content.
+- A page whose hreflang would clash with another site's copy keeps its site's own hreflang (see above).
+- Site Audit reads the hreflang tags in a page's HTML. SEOmatic's sitemaps still list each alternate with its site's
+  language, and the `<html lang>` attribute isn't changed (see Limitations).
+
+The utility shows how many pages couldn't be detected on each site, and the pages that clash. Run a new audit after
+detecting your pages, as Site Audit reports what it saw on its last crawl.
+
 ## 🚧 Limitations
 
 - Without SEOmatic, languages are still detected, but no hreflang tags are output for you: use
