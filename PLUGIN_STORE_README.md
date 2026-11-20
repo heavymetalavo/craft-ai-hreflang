@@ -2,9 +2,13 @@
 
 **README** · [Getting started](https://github.com/heavymetalavo/craft-ai-hreflang/blob/main/docs/getting-started.md) · [How it works](https://github.com/heavymetalavo/craft-ai-hreflang/blob/main/docs/how-it-works.md) · [Settings](https://github.com/heavymetalavo/craft-ai-hreflang/blob/main/docs/settings.md)
 
-![AI Hreflang, for multi-site Craft websites where pages aren't always in their site's language, with Anthropic, OpenAI, Langdock and OpenRouter, on Craft 5 with SEOmatic and Blitz. The French site of Le Faux Gras, a made-up vegan bistro, whose page is in English, with its hreflang corrected from fr-FR to en-FR.](https://raw.githubusercontent.com/heavymetalavo/craft-ai-hreflang/main/docs/images/banner.png)
+![AI Hreflang, for multi-site Craft websites where pages aren't always in their site's language, with Anthropic, OpenAI, Langdock and OpenRouter, on Craft 5 with SEOmatic and Blitz. The French site of Le Faux Gras, a made-up vegan bistro, whose page is in English, with its hreflang corrected from fr-FR to en-FR. A badge reads: Fixes Semrush's Pages with hreflang language mismatch issues.](https://raw.githubusercontent.com/heavymetalavo/craft-ai-hreflang/main/docs/images/banner.png)
 
 **For multi-site Craft websites where pages aren't always in their site's language.**
+
+> **Fixes Semrush's "Pages with hreflang language mismatch issues".** When a page is still in English on your French
+> site but its hreflang says `fr-FR`, Site Audit [flags the mismatch](https://www.semrush.com/kb/542-site-audit-issues-list#mismatch). AI Hreflang detects the language
+> each page is really written in and announces `en-FR`, so the hreflang matches the page.
 
 Some pages are waiting on a translator. Others stay in English on purpose: because most of their audience speaks it as
 a second language and translating every page isn't worth the budget, or because they're legal or regulatory text that
@@ -17,11 +21,16 @@ its hreflang to match.
 
 Multi-site launches rarely translate everything at once. Until a page is translated, the French site shows the English
 copy, while SEOmatic tells search engines it's `fr-FR`. Google sees a French page in English, and French searchers get
-the wrong result. AI Hreflang finds those pages and announces them as `en-FR`, so each page is listed for the
-language it's actually in. Translated pages keep their site's hreflang, and nobody has to keep track by hand.
+the wrong result. SEO audits such as Semrush's flag it too, as the mismatch between a page's hreflang and its text.
+
+AI Hreflang finds those pages and announces them as `en-FR`, so each page is listed for the language it's actually in.
+Translated pages keep their site's hreflang, and nobody has to keep track by hand.
 
 ## ✨ What you get
 
+- **A cleaner Semrush Site Audit.** Pages whose hreflang doesn't match their language stop being reported as
+  language mismatches, as each page's hreflang is the language it's written in. See
+  [Semrush and other SEO audits](https://github.com/heavymetalavo/craft-ai-hreflang/blob/main/docs/how-it-works.md#-semrush-and-other-seo-audits).
 - **Untranslated pages caught automatically.** With **Detect when a page is saved** turned on, a page is detected after
   it's saved, on each site the save changed, once caches such as Blitz's are cleared. As soon as it's translated, the next save puts its hreflang back.
 - **Reach new audiences before everything's translated.** Copy content across your sites, with Craft's propagation or

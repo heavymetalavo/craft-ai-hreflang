@@ -20,10 +20,11 @@
     {%- endif -%}
 {% endmacro %}
 
-{# The share of a site's pages using each hreflang, as a stacked bar with a key below it. The site's own hreflang is
-   grey, others are coloured by language (the same language is the same colour on every site) so pages served in
-   another language stand out, and pages not detected yet are striped. #}
-{% macro hreflangBar(hreflangs, siteHreflang, notDetected, languageColors, asText = false) %}
+{# The share of a site's pages using each hreflang, as a stacked bar. The site's own hreflang is grey, others are
+   coloured by language (the same language is the same colour on every site) so pages served in another language
+   stand out, and pages not detected yet are striped. Hovering or focusing a segment shows its numbers in a tooltip
+   (see utility.js), which also says how many of the site's own pages couldn't be detected. #}
+{% macro hreflangBar(hreflangs, siteHreflang, notDetected, languageColors, asText = false, undetermined = 0) %}
     {%- set total = hreflangs|reduce((sum, count) => sum + count, 0) + notDetected -%}
     {%- if total == 0 -%}
         <span class="light">—</span>
@@ -37,6 +38,9 @@
                 count: count,
                 class: code == siteHreflang ? 'aih-own' : (languageColors[language] is defined ? null : 'aih-other'),
                 color: code != siteHreflang ? languageColors[language] ?? null : null,
+                note: code == siteHreflang and undetermined
+                    ? '{count, plural, =1{Includes one page that couldn’t be detected, which keeps} other{Includes # pages that couldn’t be detected, which keep}} the site’s hreflang.'|t('ai-hreflang', { count: undetermined })
+                    : null,
             }]) -%}
         {%- endfor -%}
         {%- if notDetected > 0 -%}
@@ -46,19 +50,21 @@
                 count: notDetected,
                 class: 'aih-not-detected',
                 color: null,
+                note: 'Use Detect missing to detect them.'|t('ai-hreflang'),
             }]) -%}
         {%- endif -%}
         <div class="aih-bar">
-            <div class="aih-bar-track" aria-hidden="true">
+            <div class="aih-bar-track">
                 {%- for segment in segments %}
-                    <span class="{{ segment.class }}" style="width: {{ segment.count / total * 100 }}%;{{ segment.color ? " background: #{segment.color};" }}"></span>
-                {%- endfor %}
-            </div>
-            <div class="aih-bar-key smalltext">
-                {%- for segment in segments %}
-                    <span class="aih-bar-key-item">
-                        <span class="aih-swatch {{ segment.class }}"{% if segment.color %} style="background: {{ segment.color }};"{% endif %} aria-hidden="true"></span>
-                        {% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %} ({{ segment.count|number }})
+                    {%- set share = segment.count / total * 100 -%}
+                    {%- set shareText = (share > 0 and share < 1 ? '<1' : share|round|number) ~ '%' -%}
+                    {%- set pages = '{count, plural, =1{# page} other{# pages}}'|t('ai-hreflang', { count: segment.count }) -%}
+                    <span class="aih-seg {{ segment.class }}" tabindex="0" role="img" aria-label="{{ segment.label }}: {{ shareText }}, {{ pages }}" style="width: {{ share }}%;{{ segment.color ? " background: #{segment.color};" }}">
+                        <span class="aih-tip">
+                            <strong><span class="aih-swatch {{ segment.class }}"{% if segment.color %} style="background: {{ segment.color }};"{% endif %}></span>{% if segment.code %}<code>{{ segment.label }}</code>{% else %}{{ segment.label }}{% endif %}</strong>
+                            <span>{{ shareText }} · {{ pages }}</span>
+                            {%- if segment.note %}<span class="aih-tip-note">{{ segment.note }}</span>{% endif %}
+                        </span>
                     </span>
                 {%- endfor %}
             </div>
@@ -128,7 +134,7 @@
 
 <div class="readable aih-intro">
     <p>
-        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`.'|t('ai-hreflang')|md(inlineOnly=true) }}
+        {{ 'An hreflang tells search engines the language and region a page is for. Its value is a [BCP 47](https://www.rfc-editor.org/info/bcp47) language tag, `language-region`: a language subtag then a region subtag, written in the same format as each site’s language setting. Each site’s pages use the site’s language, such as `fr-FR` on the French site, until a page is detected in another language: a French site page still in English becomes `en-FR`, so SEO audits such as Semrush’s don’t report it as an hreflang language mismatch.'|t('ai-hreflang')|md(inlineOnly=true) }}
     </p>
     <p>
         {{ 'Two copies of a page can’t share an hreflang. When a copy’s language would give it the same hreflang as another copy, such as an untranslated page on an `es-US` site next to the `en-US` site’s page, it keeps its site’s own hreflang, and the clash is shown below and in the page’s Content Language field.'|t('ai-hreflang')|md(inlineOnly=true) }}
@@ -172,9 +178,6 @@
 } %}
 
 {% macro notes(row) %}
-    {% if row.undetermined %}
-        <div class="light smalltext">{{ '{count, plural, =1{One page} other{# pages}} couldn’t be detected, so {count, plural, =1{it keeps} other{they keep}} the site’s hreflang.'|t('ai-hreflang', { count: row.undetermined }) }}</div>
-    {% endif %}
     {% if row.chosen %}
         <div class="light smalltext">{{ '{count, plural, =1{One page has a language chosen by an editor, which is kept unless you use Re-detect all.} other{# pages have a language chosen by an editor, which are kept unless you use Re-detect all.}}'|t('ai-hreflang', { count: row.chosen }) }}</div>
     {% endif %}
@@ -204,8 +207,8 @@
                     {% set ownLabel = 'Site’s language'|t('ai-hreflang') %}
                     {{ _self.hreflangBar({
                         (ownLabel): ownLanguage,
-                        ('Another language'|t('ai-hreflang')): totals.detected - ownLanguage,
-                    }, ownLabel, totals.total - totals.detected, {}, true) }}
+                        ('Other'|t('ai-hreflang')): totals.detected - ownLanguage,
+                    }, ownLabel, totals.total - totals.detected, {}, true, totals.undetermined) }}
                     {{ _self.notes(totals) }}
                 </td>
                 <td>{{ _self.detectButtons(null, configurationError, totals.chosen) }}</td>
@@ -219,7 +222,7 @@
                     <td>{{ row.detected|number }} / {{ row.total|number }}</td>
                     <td>{{ _self.coverageRing(row.coverage) }}</td>
                     <td>
-                        {{ _self.hreflangBar(row.hreflangs, row.siteHreflang, row.total - row.detected, languageColors) }}
+                        {{ _self.hreflangBar(row.hreflangs, row.siteHreflang, row.total - row.detected, languageColors, false, row.undetermined) }}
                         {{ _self.notes(row) }}
                     </td>
                     <td>{{ _self.detectButtons(row.site.id, configurationError, row.chosen) }}</td>

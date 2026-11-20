@@ -6,7 +6,7 @@ use craft\web\AssetBundle;
 use craft\web\assets\cp\CpAsset;
 
 /**
- * Styles for the AI Hreflang utility.
+ * Styles and script for the AI Hreflang utility.
  *
  * @package heavymetalavo\aihreflang\web\assets\utility
  */
@@ -20,6 +20,7 @@ class UtilityAsset extends AssetBundle
         $this->sourcePath = __DIR__ . '/dist';
         $this->depends = [CpAsset::class];
         $this->css = ['utility.css'];
+        $this->js = ['utility.js'];
 
         parent::init();
     }
