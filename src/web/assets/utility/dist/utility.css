@@ -98,6 +98,7 @@
 
 .aih-tooltip {
   --aih-slide: 6px;
+  --aih-scale: 0.94;
   position: fixed;
   z-index: 10000;
   display: flex;
@@ -111,13 +112,17 @@
   color: #fff;
   font-size: 12px;
   line-height: 1.4;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.18);
   pointer-events: none;
-  /* Hidden: faded out, and offset away from the segment so it slides back in. It's laid out, so it can be measured. */
+  will-change: opacity, transform;
+  /* It grows out of the caret, so the segment it describes is where it appears from */
+  transform-origin: var(--aih-caret, 50%) 100%;
+  /* Hidden: faded out, nudged away from the segment and a little small, so it settles into place. It's laid out, so
+     it can be measured. */
   opacity: 0;
   visibility: hidden;
-  transform: translateY(var(--aih-slide));
-  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0s 0.12s;
+  transform: translateY(var(--aih-slide)) scale(var(--aih-scale));
+  transition: opacity 0.1s ease-in, transform 0.1s ease-in, visibility 0s 0.1s;
 }
 
 /* A caret points at the middle of the segment, wherever the tooltip had to move to stay on screen */
@@ -138,26 +143,27 @@
   bottom: auto;
 }
 
-/* Above the segment it rises into place, below it drops */
+/* Above the segment it rises into place, below it drops, growing from the top edge where the caret is */
 .aih-tooltip[data-placement='bottom'] {
   --aih-slide: -6px;
+  transform-origin: var(--aih-caret, 50%) 0;
 }
 
 .aih-tooltip.aih-tooltip-visible {
   opacity: 1;
   visibility: visible;
   transform: none;
-  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+  transition: opacity 0.16s ease-out, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
 }
 
 /* Moving to the next segment of a bar glides sideways. Its top isn't transitioned, as it only changes with the
    tooltip's height, which the new text changes at once. */
 .aih-tooltip.aih-tooltip-visible.aih-tooltip-gliding {
-  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s, left 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.16s ease-out, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s, left 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aih-tooltip.aih-tooltip-gliding::after {
-  transition: left 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: left 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aih-tooltip.aih-tooltip-instant {
@@ -169,6 +175,7 @@
   .aih-tooltip.aih-tooltip-visible,
   .aih-tooltip.aih-tooltip-visible.aih-tooltip-gliding {
     --aih-slide: 0;
+    --aih-scale: 1;
     transition: opacity 0.1s ease, visibility 0s;
   }
 }
