@@ -103,7 +103,7 @@ nothing, and you can turn on **Skip Scout When Saving Detections** to stop them.
 
 Pages saved before the plugin was installed haven't been detected yet. Open **Utilities → AI Hreflang**, which
 shows each site's coverage (detected pages out of all its live pages with the field and a URL) and the hreflang values
-its pages use, with buttons to detect them for one site or all sites:
+its pages use, as a bar you can hover or tab to for each hreflang's share and page count, with buttons to detect them for one site or all sites:
 
 - **Detect missing** sends only pages that haven't been detected, and leaves the rest alone. It doesn't go back to
   pages whose text has changed.

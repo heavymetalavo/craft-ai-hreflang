@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Changed the utility's hreflang bars to show each segment's share of the site's pages before its count, such as `en-FR 56% (205)`. A share under 1% shows as `<1%`.
+- Changed the utility's hreflang bars to be taller, with each segment's numbers in a tooltip shown on hover or focus instead of a key below, such as `en-FR`, 56% · 205 pages. A share under 1% shows as `<1%`, and the note that pages couldn't be detected moved into the site's own segment's tooltip.
 - Changed the **All sites** bar's "Another language" label to "Other".
 - Changed the README, plugin store listing, utility and documentation to explain the problem as Semrush's Site Audit reports it, **Pages with hreflang language mismatch issues**, and added a "Semrush and other SEO audits" section to How it works. The README now opens with a callout about it.
 
