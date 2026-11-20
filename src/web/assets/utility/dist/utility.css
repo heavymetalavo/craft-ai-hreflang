@@ -97,11 +97,13 @@
 }
 
 .aih-tooltip {
+  --aih-slide: 6px;
   position: fixed;
   z-index: 10000;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: max-content;
   max-width: 280px;
   padding: 8px 10px;
   border-radius: 6px;
@@ -111,10 +113,59 @@
   line-height: 1.4;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   pointer-events: none;
+  /* Hidden: faded out, and offset away from the segment so it slides back in. It's laid out, so it can be measured. */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--aih-slide));
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0s 0.12s;
 }
 
-.aih-tooltip[hidden] {
-  display: none;
+/* A caret points at the middle of the segment, wherever the tooltip had to move to stay on screen */
+.aih-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: var(--aih-caret, 50%);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.aih-tooltip[data-placement='bottom']::after {
+  top: -4px;
+  bottom: auto;
+}
+
+/* Above the segment it rises into place, below it drops */
+.aih-tooltip[data-placement='bottom'] {
+  --aih-slide: -6px;
+}
+
+.aih-tooltip.aih-tooltip-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+}
+
+/* Moving from one segment to the next while it's showing glides rather than jumps */
+.aih-tooltip.aih-tooltip-visible.aih-tooltip-gliding {
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s, left 0.15s ease, top 0.15s ease;
+}
+
+.aih-tooltip.aih-tooltip-gliding::after {
+  transition: left 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aih-tooltip,
+  .aih-tooltip.aih-tooltip-visible,
+  .aih-tooltip.aih-tooltip-visible.aih-tooltip-gliding {
+    --aih-slide: 0;
+    transition: opacity 0.1s ease, visibility 0s;
+  }
 }
 
 .aih-tooltip code {
